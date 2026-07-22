@@ -1,4 +1,4 @@
-import sqlite3
+import psycopg2
 import time
 import sys
 import os
@@ -71,8 +71,9 @@ class Student:
 
 class StudentTracker:
     def __init__(self):
-        # 6. SQLite Database
-        self.conn = sqlite3.connect("students.db", check_same_thread=False)
+        # 6. PostgreSQL Database
+        EXTERNAL_URL = "postgresql://edutrack_db_qufk_user:WRnGZGxftYOAmNaG0uHTrc8Sgc6RdFmK@dpg-d9g9t9mrnols73c4lovg-a.singapore-postgres.render.com/edutrack_db_qufk"
+        self.conn = psycopg2.connect(EXTERNAL_URL)
         self.cursor = self.conn.cursor()
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS students 
                                (roll_number TEXT PRIMARY KEY, name TEXT, math REAL, science REAL, english REAL)''')
@@ -81,17 +82,17 @@ class StudentTracker:
     # 1. Core Functionalities
     def add_student(self, name, roll_number):
         try:
-            self.cursor.execute("INSERT INTO students (roll_number, name) VALUES (?, ?)", (roll_number, name))
+            self.cursor.execute("INSERT INTO students (roll_number, name) VALUES (%s, %s)", (roll_number, name))
             self.conn.commit()
             return "Student Added Successfully"
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
             return "ERROR: STUDENT ALREADY EXISTS"
 
     def add_grades(self, roll_number, math, science, english):
-        self.cursor.execute("SELECT * FROM students WHERE roll_number=?", (roll_number,))
+        self.cursor.execute("SELECT * FROM students WHERE roll_number=%s", (roll_number,))
         if not self.cursor.fetchone():
             return "ERROR: STUDENT NOT FOUND"
-        self.cursor.execute("UPDATE students SET math=?, science=?, english=? WHERE roll_number=?", (math, science, english, roll_number))
+        self.cursor.execute("UPDATE students SET math=%s, science=%s, english=%s WHERE roll_number=%s   ", (math, science, english, roll_number))
         self.conn.commit()
         return "Grades Assigned Successfully"
 

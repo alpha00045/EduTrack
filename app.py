@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template_string, redirect
-import sqlite3
+import psycopg2
 
 app = Flask(__name__)
 
@@ -47,7 +47,8 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def index():
-    conn = sqlite3.connect("students.db")
+    INTERNAL_URL = "postgresql://edutrack_db_qufk_user:WRnGZGxftYOAmNaG0uHTrc8Sgc6RdFmK@dpg-d9g9t9mrnols73c4lovg-a/edutrack_db_qufk"
+    conn = psycopg2.connect(INTERNAL_URL)
     cur = conn.cursor()
     cur.execute("SELECT roll_number, name, math, science, english FROM students")
     students = cur.fetchall()
@@ -56,13 +57,14 @@ def index():
 
 @app.route('/add', methods=['POST'])
 def add():
-    conn = sqlite3.connect("students.db")
+    INTERNAL_URL = "postgresql://edutrack_db_qufk_user:WRnGZGxftYOAmNaG0uHTrc8Sgc6RdFmK@dpg-d9g9t9mrnols73c4lovg-a/edutrack_db_qufk"
+    conn = psycopg2.connect(INTERNAL_URL)
     cur = conn.cursor()
     try:
-        cur.execute("INSERT INTO students (roll_number, name) VALUES (?, ?)", 
+        cur.execute("INSERT INTO students (roll_number, name) VALUES (%s, %s)", 
                     (request.form['roll'], request.form['name']))
         conn.commit()
-    except sqlite3.IntegrityError:
+    except psycopg2.IntegrityError:
         pass
     conn.close()
     return redirect('/')

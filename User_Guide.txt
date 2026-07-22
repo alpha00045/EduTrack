@@ -30,4 +30,4 @@ DEPLOYMENT INSTRUCTIONS (RENDER)
 4. Set the Build Command to `pip install -r requirements.txt` and the Start Command to `gunicorn app:app`.
 5. Click "Create Web Service" and wait for the deployment to finish to get your live URL.
 
-Deployed Link: https://edutrack-o3bp.onrender.com
+Deployed Link: https://edutrack-1-r3mx.onrender.com/

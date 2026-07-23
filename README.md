@@ -84,4 +84,4 @@ EduTrack/
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/EduTrack.git
+git clone https://github.com/alpha00045/EduTrack.git

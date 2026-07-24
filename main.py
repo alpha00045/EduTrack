@@ -72,8 +72,8 @@ class Student:
 class StudentTracker:
     def __init__(self):
         # 6. PostgreSQL Database
-        EXTERNAL_URL = "postgresql://edutrack_db_qufk_user:WRnGZGxftYOAmNaG0uHTrc8Sgc6RdFmK@dpg-d9g9t9mrnols73c4lovg-a.singapore-postgres.render.com/edutrack_db_qufk"
-        self.conn = psycopg2.connect(EXTERNAL_URL)
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        self.conn = psycopg2.connect(DATABASE_URL)
         self.cursor = self.conn.cursor()
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS students 
                                (roll_number TEXT PRIMARY KEY, name TEXT, math REAL, science REAL, english REAL)''')

@@ -29,7 +29,19 @@ def index():
     class_average = round(sum(averages) / len(averages), 2) if averages else 0
     subjects = 3
     conn.close()
-    return render_template("index.html", students=students, total_students=total_students, class_average=class_average, highest=highest, subjects=subjects)
+    return render_template(
+    "index.html",
+
+    students=students,
+
+    total_students=total_students,
+
+    class_average=class_average,
+
+    highest=round(highest,2),
+
+    subjects=subjects
+)
 
 @app.route('/add', methods=['POST'])
 def add():

@@ -3,8 +3,6 @@ import psycopg2
 
 app = Flask(__name__)
 
-
-
 @app.route('/')
 def index():
     INTERNAL_URL = "postgresql://edutrack_db_qufk_user:WRnGZGxftYOAmNaG0uHTrc8Sgc6RdFmK@dpg-d9g9t9mrnols73c4lovg-a.singapore-postgres.render.com/edutrack_db_qufk"

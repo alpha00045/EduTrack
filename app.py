@@ -10,33 +10,26 @@ def index():
     cur = conn.cursor()
     cur.execute("SELECT roll_number, name, math, science, english FROM students")
     students = cur.fetchall()
-    
-# Dashboard Statistics
-total_students = len(students)
 
-averages = []
+    # Dashboard Statistics
+    total_students = len(students)
 
-highest = 0
+    averages = []
+    highest = 0
 
-for student in students:
+    for student in students:
+        marks = [student[2], student[3], student[4]]
+        marks = [m for m in marks if m is not None]
+        if marks:
+            avg = sum(marks) / len(marks)
+            averages.append(avg)
+            if avg > highest:
+                highest = avg
 
-    marks = [student[2], student[3], student[4]]
-
-    marks = [m for m in marks if m is not None]
-
-    if marks:
-
-        avg = sum(marks) / len(marks)
-
-        averages.append(avg)
-
-        if avg > highest:
-            highest = avg
-
-class_average = round(sum(averages)/len(averages),2) if averages else 0
-subjects = 3
+    class_average = round(sum(averages) / len(averages), 2) if averages else 0
+    subjects = 3
     conn.close()
-    return render_template("index.html", students=students)
+    return render_template("index.html", students=students, total_students=total_students, class_average=class_average, highest=highest, subjects=subjects)
 
 @app.route('/add', methods=['POST'])
 def add():

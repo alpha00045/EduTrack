@@ -119,10 +119,13 @@ EduTrack/
 # 📸 Screenshots
 
 > Screenshots will be added as the UI development progresses.
+## 📸 Project Screenshot
+
+![EduTrack Dashboard](static/images/dashboard-v1.png)
 
 ```
 Homepage
-Dashboard
+Dashboard 
 Analytics
 Student Management
 ```

@@ -1,68 +1,96 @@
-# 🎓 EduTrack – Student Performance Tracker
+# 🎓 EduTrack
 
-A Python-based **Student Performance Tracking System** with both a **Command Line Interface (CLI)** and a **Flask-powered Web Dashboard**, backed by a **PostgreSQL cloud database** hosted on **Render**.
+<div align="center">
+
+### Student Performance Analytics Platform
+
+*A modern Flask-powered student management and analytics system with PostgreSQL cloud database.*
+
+![Python](https://img.shields.io/badge/Python-3.13-blue?style=for-the-badge&logo=python)
+![Flask](https://img.shields.io/badge/Flask-3.0-black?style=for-the-badge&logo=flask)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue?style=for-the-badge&logo=postgresql)
+![Render](https://img.shields.io/badge/Render-Deployed-46E3B7?style=for-the-badge&logo=render)
+![GitHub](https://img.shields.io/badge/GitHub-Open%20Source-black?style=for-the-badge&logo=github)
+
+</div>
 
 ---
 
-## 📌 Overview
+# 📖 About EduTrack
 
-EduTrack is a student management system designed to help teachers manage student records and academic performance efficiently.
+EduTrack is a modern **Student Performance Analytics Platform** built using **Python**, **Flask**, and **PostgreSQL**.
 
-The application provides two interfaces:
+The project started as a Command Line Interface (CLI) application and is now evolving into a professional web-based analytics dashboard.
 
-- 💻 Command Line Interface (CLI)
-- 🌐 Web Dashboard (Flask)
-
-Student records are stored in a PostgreSQL database hosted on Render, ensuring persistent cloud storage.
+It enables teachers and administrators to manage student records, assign grades, analyze academic performance, and visualize educational data through an intuitive web interface.
 
 ---
 
-## ✨ Features
+# ✨ Features
 
-### 👨‍🎓 Student Management
-- Add new students
-- Unique Roll Number validation
-- Persistent database storage
+## 👨‍🎓 Student Management
 
-### 📚 Grade Management
-- Assign grades
-- Grade validation (0–100)
-- Update existing student records
+- Add New Students
+- Unique Roll Number Validation
+- Edit Student Records *(Coming Soon)*
+- Delete Students *(Coming Soon)*
+- Search Students *(Coming Soon)*
 
-### 📊 Performance Analytics
-- Calculate student average
-- View subject topper
-- View class average
+---
 
-### 💾 Backup
-- Export all records to `student_backup.txt`
+## 📚 Academic Records
 
-### 🌐 Web Dashboard
-- View all students
-- Add students from browser
-- Real-time PostgreSQL synchronization
+- Assign Subject Marks
+- Grade Validation (0–100)
+- Automatic Average Calculation
+- Cloud Database Storage
 
-### ☁ Cloud Deployment
+---
+
+## 📊 Analytics
+
+- Subject Topper
+- Class Average
+- Student Average
+- Performance Dashboard *(In Development)*
+- Charts & Graphs *(Coming Soon)*
+
+---
+
+## 🌐 Web Dashboard
+
+- Responsive Flask Website
+- Bootstrap 5 Interface
+- PostgreSQL Integration
+- Real-Time Database Updates
+- Mobile Friendly UI *(In Development)*
+
+---
+
+## ☁ Deployment
+
 - Hosted on Render
-- PostgreSQL Database
 - Gunicorn Production Server
+- PostgreSQL Cloud Database
+- Environment Variable Configuration
 
 ---
 
-## 🛠 Tech Stack
+# 🛠 Tech Stack
 
 | Category | Technology |
-|----------|------------|
-| **Language** | Python 3 |
-| **Backend** | Flask |
-| **Database** | PostgreSQL |
-| **Deployment** | Render |
-| **Server** | Gunicorn |
-| **Version Control** | Git & GitHub |
+|-----------|------------|
+| Language | Python |
+| Framework | Flask |
+| Frontend | HTML5, CSS3, Bootstrap 5 |
+| Database | PostgreSQL |
+| Deployment | Render |
+| Server | Gunicorn |
+| Version Control | Git & GitHub |
 
 ---
 
-## 📁 Project Structure
+# 📂 Project Structure
 
 ```text
 EduTrack/
@@ -71,17 +99,162 @@ EduTrack/
 ├── main.py
 ├── requirements.txt
 ├── Procfile
+├── README.md
 ├── User_Guide.txt
 ├── student_backup.txt
-├── students.db
-└── README.md
+│
+├── templates/
+│   ├── base.html
+│   └── index.html
+│
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   └── script.js
+│   └── images/
 ```
 
 ---
 
-## 🚀 Installation
+# 🚀 Getting Started
 
-### Clone the Repository
+## 1️⃣ Clone Repository
 
 ```bash
 git clone https://github.com/alpha00045/EduTrack.git
+
+cd EduTrack
+```
+
+---
+
+## 2️⃣ Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+Activate
+
+### Windows
+
+```bash
+venv\Scripts\activate
+```
+
+### Linux / macOS
+
+```bash
+source venv/bin/activate
+```
+
+---
+
+## 3️⃣ Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 4️⃣ Configure Environment Variable
+
+Create a `.env` file or configure your deployment environment with:
+
+```env
+DATABASE_URL=your_postgresql_database_url
+```
+
+---
+
+## 5️⃣ Run the Application
+
+### Flask Website
+
+```bash
+python app.py
+```
+
+Open
+
+```
+http://127.0.0.1:5000
+```
+
+### CLI Version
+
+```bash
+python main.py
+```
+
+---
+
+# 📸 Screenshots
+
+> Screenshots will be added as the UI development progresses.
+
+```
+Homepage
+Dashboard
+Analytics
+Student Management
+```
+
+---
+
+# 📈 Project Status
+
+| Module | Status |
+|---------|--------|
+| CLI Application | ✅ Completed |
+| Flask Integration | ✅ Completed |
+| PostgreSQL Integration | ✅ Completed |
+| Render Deployment | ✅ Completed |
+| Responsive UI | 🚧 In Progress |
+| Dashboard | 🚧 In Progress |
+| Analytics | 🚧 In Progress |
+| Charts | ⏳ Planned |
+| Authentication | ⏳ Planned |
+
+---
+
+# 🎯 Future Enhancements
+
+- Student Login
+- Admin Authentication
+- Attendance Management
+- PDF Report Generation
+- Excel Export
+- Email Notifications
+- Performance Prediction
+- AI-Based Insights
+
+---
+
+# 🤝 Contributing
+
+Contributions, suggestions, and feature requests are welcome.
+
+If you would like to improve EduTrack, feel free to fork the repository and submit a Pull Request.
+
+---
+
+# 👨‍💻 Developer
+
+**Sagar Nayak**
+
+Aspiring Data Analyst & Python Developer
+
+GitHub: https://github.com/alpha00045
+
+---
+
+# ⭐ Support
+
+If you found this project helpful,
+
+⭐ **Star this repository**
+
+It motivates me to build more open-source projects.

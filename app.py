@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, redirect
+from flask import Flask, request, render_template, redirect
 import psycopg2
 
 app = Flask(__name__)
@@ -13,7 +13,7 @@ def index():
     cur.execute("SELECT roll_number, name, math, science, english FROM students")
     students = cur.fetchall()
     conn.close()
-    return render_template_string(HTML_TEMPLATE, students=students)
+    return render_template("index.html", students=students)
 
 @app.route('/add', methods=['POST'])
 def add():

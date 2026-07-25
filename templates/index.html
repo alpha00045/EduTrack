@@ -146,39 +146,43 @@ EduTrack
                         {% for s in students %}
 
                         <tr>
+                        <td>{{ s.roll }}</td>
 
-                            <td>{{ s[0] }}</td>
+                        <td>{{ s.name }}</td>
 
-                            <td>{{ s[1] }}</td>
+                        <td>{{ s.math if s.math != None else "-" }}</td>
 
-                            <td>{{ s[2] if s[2] != None else "-" }}</td>
+                        <td>{{ s.science if s.science != None else "-" }}</td>
 
-                            <td>{{ s[3] if s[3] != None else "-" }}</td>
+                        <td>{{ s.english if s.english != None else "-" }}</td>
+                            
+                        <td>{{ s.average }}</td>
 
-                            <td>{{ s[4] if s[4] != None else "-" }}</td>
                         <td>
-    
-                        {% set marks = [] %}
 
-                        {% if s[2] is not none %}
-                            {% set _ = marks.append(s[2]) %}
-                        {% endif %}
+{% if s.grade == "A+" %}
 
-                        {% if s[3] is not none % }
-                            {% set _ = marks.append(s[3]) %}
-                        {% endif %}
+<span class="badge bg-success">{{ s.grade }}</span>
 
-                        {% if s[4] is not none %}
-                            {% set _ = marks.append(s[4]) %}
-                        {% endif %}
+{% elif s.grade == "A" %}
 
-                        {% if marks %}
-                        {{ "%.2f"|format(marks|sum / marks|length) }}
-                        {% else %}
-                        -
-                        {% endif %}
+<span class="badge bg-primary">{{ s.grade }}</span>
 
-                        </td>
+{% elif s.grade == "B" %}
+
+<span class="badge bg-info text-dark">{{ s.grade }}</span>
+
+{% elif s.grade == "C" %}
+
+<span class="badge bg-warning text-dark">{{ s.grade }}</span>
+
+{% else %}
+
+<span class="badge bg-danger">{{ s.grade }}</span>
+
+{% endif %}
+
+</td>
 
                         </tr>
 

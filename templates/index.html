@@ -105,4 +105,70 @@ EduTrack
 
 </div>
 
+<!-- Student Table -->
+
+<div class="container mt-5">
+
+    <div class="card shadow border-0">
+
+        <div class="card-header bg-primary text-white">
+
+            <h4 class="mb-0">
+                📋 Student Records
+            </h4>
+
+        </div>
+
+        <div class="card-body">
+
+            <div class="table-responsive">
+
+                <table class="table table-hover table-bordered align-middle">
+
+                    <thead class="table-dark">
+
+                        <tr>
+
+                            <th>Roll No.</th>
+                            <th>Name</th>
+                            <th>Math</th>
+                            <th>Science</th>
+                            <th>English</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% for s in students %}
+
+                        <tr>
+
+                            <td>{{ s[0] }}</td>
+
+                            <td>{{ s[1] }}</td>
+
+                            <td>{{ s[2] if s[2] != None else "-" }}</td>
+
+                            <td>{{ s[3] if s[3] != None else "-" }}</td>
+
+                            <td>{{ s[4] if s[4] != None else "-" }}</td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
 {% endblock %}

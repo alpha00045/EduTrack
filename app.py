@@ -66,7 +66,7 @@ def index():
     return render_template(
     "index.html",
 
-    students=students,
+    students=student_data,
 
     total_students=total_students,
 

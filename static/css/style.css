@@ -17,3 +17,14 @@ th {
 td, th {
     padding: 12px;
 }
+table tbody tr:hover{
+
+transform:scale(1.01);
+
+transition:.3s;
+
+background:#f8f9fa;
+
+cursor:pointer;
+
+}

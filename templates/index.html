@@ -156,26 +156,56 @@ EduTrack
                             <td>{{ s[3] if s[3] != None else "-" }}</td>
 
                             <td>{{ s[4] if s[4] != None else "-" }}</td>
-<td>
+                        <td>
+    
+                        {% set marks = [] %}
 
-{% set marks = [] %}
+                        {% if s[2] is not none %}
+                            {% set _ = marks.append(s[2]) %}
+                        {% endif %}
 
-{% if s[2] is not none %}
-    {% set _ = marks.append(s[2]) %}
-{% endif %}
+                        {% if s[3] is not none % }
+                            {% set _ = marks.append(s[3]) %}
+                        {% endif %}
 
-{% if s[3] is not none %}
-    {% set _ = marks.append(s[3]) %}
-{% endif %}
+                        {% if s[4] is not none %}
+                            {% set _ = marks.append(s[4]) %}
+                        {% endif %}
 
-{% if s[4] is not none %}
-    {% set _ = marks.append(s[4]) %}
-{% endif %}
+                        {% if marks %}
+                        {{ "%.2f"|format(marks|sum / marks|length) }}
+                        {% else %}
+                        -
+                        {% endif %}
+
+                        </td>
+                        <td>
 
 {% if marks %}
-    {{ "%.2f"|format(marks|sum / marks|length) }}
+
+{% set avg = marks|sum / marks|length %}
+
+{% if avg >= 90 %}
+<span class="badge bg-success">A+</span>
+
+{% elif avg >= 80 %}
+<span class="badge bg-primary">A</span>
+
+{% elif avg >= 70 %}
+<span class="badge bg-info">B</span>
+
+{% elif avg >= 60 %}
+<span class="badge bg-warning text-dark">C</span>
+
 {% else %}
-    -
+<span class="badge bg-danger">F</span>
+
+{% endif %}
+
+{% else %}
+
+-
+
 {% endif %}
 
 </td>

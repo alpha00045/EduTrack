@@ -179,36 +179,6 @@ EduTrack
                         {% endif %}
 
                         </td>
-                        <td>
-
-{% if marks %}
-
-{% set avg = marks|sum / marks|length %}
-
-{% if avg >= 90 %}
-<span class="badge bg-success">A+</span>
-
-{% elif avg >= 80 %}
-<span class="badge bg-primary">A</span>
-
-{% elif avg >= 70 %}
-<span class="badge bg-info">B</span>
-
-{% elif avg >= 60 %}
-<span class="badge bg-warning text-dark">C</span>
-
-{% else %}
-<span class="badge bg-danger">F</span>
-
-{% endif %}
-
-{% else %}
-
--
-
-{% endif %}
-
-</td>
 
                         </tr>
 

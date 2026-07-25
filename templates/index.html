@@ -139,12 +139,14 @@ EduTrack
 
                         <tr>
 
+                            <th>Rank</th>
                             <th>Roll No.</th>
                             <th>Name</th>
                             <th>Math</th>
                             <th>Science</th>
                             <th>English</th>
                             <th>Average</th>
+                            <th>Progress</th>
                             <th>Grade</th>
 
                         </tr>
@@ -154,8 +156,30 @@ EduTrack
                     <tbody>
 
                         {% for s in students %}
+                        {% set rank = loop.index %}
 
                         <tr>
+                        <td>
+
+{% if rank == 1 %}
+
+🥇
+
+{% elif rank == 2 %}
+
+🥈
+
+{% elif rank == 3 %}
+
+🥉
+
+{% else %}
+
+{{ rank }}
+
+{% endif %}
+
+</td>
                         <td>{{ s.roll }}</td>
 
                         <td>{{ s.name }}</td>
@@ -167,6 +191,23 @@ EduTrack
                         <td>{{ s.english if s.english != None else "-" }}</td>
                             
                         <td>{{ s.average }}</td>
+
+                        <td>
+
+<div class="progress">
+
+<div
+class="progress-bar bg-success"
+role="progressbar"
+style="width: {{ s.average }}%;">
+
+{{ s.average }}%
+
+</div>
+
+</div>
+
+</td>
 
                         <td>
 

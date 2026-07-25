@@ -10,6 +10,40 @@ def index():
     cur = conn.cursor()
     cur.execute("SELECT roll_number, name, math, science, english FROM students")
     students = cur.fetchall()
+    student_data = []
+    for s in students:
+
+    marks = [m for m in [s[2], s[3], s[4]] if m is not None]
+
+    if marks:
+        average = round(sum(marks) / len(marks), 2)
+    else:
+        average = 0
+
+    if average >= 90:
+        grade = "A+"
+
+    elif average >= 80:
+        grade = "A"
+
+    elif average >= 70:
+        grade = "B"
+
+    elif average >= 60:
+        grade = "C"
+
+    else:
+        grade = "F"
+
+    student_data.append({
+        "roll": s[0],
+        "name": s[1],
+        "math": s[2],
+        "science": s[3],
+        "english": s[4],
+        "average": average,
+        "grade": grade
+    })
 
     # Dashboard Statistics
     total_students = len(students)

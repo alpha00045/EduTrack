@@ -11,48 +11,41 @@ def index():
     cur.execute("SELECT roll_number, name, math, science, english FROM students")
     students = cur.fetchall()
     student_data = []
-    students = cur.fetchall()
 
-student_data = []
+    for s in students:
+        marks = [m for m in [s[2], s[3], s[4]] if m is not None]
+        if marks:
+            average = round(sum(marks) / len(marks), 2)
+        else:
+            average = 0
 
-for s in students:
+        if average >= 90:
+            grade = "A+"
+        elif average >= 80:
+            grade = "A"
+        elif average >= 70:
+            grade = "B"
+        elif average >= 60:
+            grade = "C"
+        else:
+            grade = "F"
 
-    marks = [m for m in [s[2], s[3], s[4]] if m is not None]
+        student_data.append({
+            "roll": s[0],
+            "name": s[1],
+            "math": s[2],
+            "science": s[3],
+            "english": s[4],
+            "average": average,
+            "grade": grade
+        })
 
-    if marks:
-        average = round(sum(marks) / len(marks), 2)
-    else:
-        average = 0
-
-    if average >= 90:
-        grade = "A+"
-    elif average >= 80:
-        grade = "A"
-    elif average >= 70:
-        grade = "B"
-    elif average >= 60:
-        grade = "C"
-    else:
-        grade = "F"
-
-    student_data.append({
-        "roll": s[0],
-        "name": s[1],
-        "math": s[2],
-        "science": s[3],
-        "english": s[4],
-        "average": average,
-        "grade": grade
-    })
-    # Dashboard Statistics
     total_students = len(students)
-
     averages = []
     highest = 0
 
     for student in students:
-        marks = [student[2], student[3], student[4]]
-        marks = [m for m in marks if m is not None]
+        marks = [m for m in [student[2], student[3], student[4]] if m is not None]
         if marks:
             avg = sum(marks) / len(marks)
             averages.append(avg)
@@ -61,20 +54,16 @@ for s in students:
 
     class_average = round(sum(averages) / len(averages), 2) if averages else 0
     subjects = 3
+
     conn.close()
     return render_template(
-    "index.html",
-
-    students=student_data,
-
-    total_students=total_students,
-
-    class_average=class_average,
-
-    highest=round(highest,2),
-
-    subjects=subjects
-)
+        "index.html",
+        students=student_data,
+        total_students=total_students,
+        class_average=class_average,
+        highest=round(highest, 2),
+        subjects=subjects
+    )
 
 @app.route('/add', methods=['POST'])
 def add():

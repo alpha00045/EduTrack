@@ -11,7 +11,11 @@ def index():
     cur.execute("SELECT roll_number, name, math, science, english FROM students")
     students = cur.fetchall()
     student_data = []
-    for s in students:
+    students = cur.fetchall()
+
+student_data = []
+
+for s in students:
 
     marks = [m for m in [s[2], s[3], s[4]] if m is not None]
 
@@ -22,16 +26,12 @@ def index():
 
     if average >= 90:
         grade = "A+"
-
     elif average >= 80:
         grade = "A"
-
     elif average >= 70:
         grade = "B"
-
     elif average >= 60:
         grade = "C"
-
     else:
         grade = "F"
 
@@ -44,7 +44,6 @@ def index():
         "average": average,
         "grade": grade
     })
-
     # Dashboard Statistics
     total_students = len(students)
 

@@ -32,6 +32,21 @@ body{
 
 }
 
+.card h2{
+
+    font-weight:700;
+
+    color:#0d6efd;
+
+}
+
+.card h5{
+
+    color:#6c757d;
+
+}
+
+
 .btn{
 
     border-radius:10px;
@@ -43,6 +58,41 @@ body{
 table {
     width: 100%;
     border-collapse: collapse;
+}
+
+.hero{
+
+    background:linear-gradient(135deg,#0d6efd,#6610f2);
+
+    color:white;
+
+    padding:60px;
+
+    border-radius:20px;
+
+    margin-top:30px;
+
+    margin-bottom:30px;
+}
+
+.table tbody tr{
+
+    transition:.25s;
+
+}
+
+.table tbody tr:hover{
+
+    background:#eef5ff;
+
+}
+
+#searchInput{
+
+    border-radius:30px;
+
+    padding:10px 20px;
+
 }
 
 th {

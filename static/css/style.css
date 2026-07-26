@@ -8,6 +8,38 @@ body{
 
 }
 
+.navbar{
+
+    box-shadow:0 4px 12px rgba(0,0,0,.1);
+
+}
+
+.card{
+
+    border:none;
+
+    border-radius:18px;
+
+    transition:.3s;
+
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+
+}
+
+.card:hover{
+
+    transform:translateY(-6px);
+
+}
+
+.btn{
+
+    border-radius:10px;
+
+    font-weight:600;
+
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

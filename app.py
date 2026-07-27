@@ -81,3 +81,8 @@ def add():
 
 if __name__ == "__main__":
     app.run(debug=True)
+    
+@app.route("/add_student")
+def add_student():
+
+    return render_template("add_student.html")

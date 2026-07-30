@@ -66,8 +66,6 @@ def index():
         subjects=subjects
     )
 
-from flask import flash
-
 @app.route("/add_student", methods=["GET", "POST"])
 def add_student():
 

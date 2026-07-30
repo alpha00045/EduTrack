@@ -66,6 +66,8 @@ def index():
         subjects=subjects
     )
 
+from flask import flash
+
 @app.route("/add_student", methods=["GET", "POST"])
 def add_student():
 
@@ -74,45 +76,43 @@ def add_student():
         DATABASE_URL = os.getenv("DATABASE_URL")
 
         conn = psycopg2.connect(DATABASE_URL)
-
         cur = conn.cursor()
 
-try:
+        try:
 
-    cur.execute(
-        """
-        INSERT INTO students
-        (roll_number, name, math, science, english)
-        VALUES (%s, %s, %s, %s, %s)
-        """,
-        (
-            request.form["roll"],
-            request.form["name"],
-            request.form["math"],
-            request.form["science"],
-            request.form["english"]
-        )
-    )
+            cur.execute(
+                """
+                INSERT INTO students
+                (roll_number, name, math, science, english)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    request.form["roll"],
+                    request.form["name"],
+                    request.form["math"],
+                    request.form["science"],
+                    request.form["english"]
+                )
+            )
 
-    conn.commit()
+            conn.commit()
 
-    flash("🎉 Student added successfully!", "success")
+            flash("🎉 Student added successfully!", "success")
 
-    return redirect("/")
+            return redirect("/")
 
-except psycopg2.IntegrityError:
+        except psycopg2.IntegrityError:
 
-    conn.rollback()
+            conn.rollback()
 
-    flash("❌ Roll Number already exists!", "danger")
+            flash("❌ Roll Number already exists!", "danger")
 
-    return redirect("/add_student")
+            return redirect("/add_student")
 
-finally:
+        finally:
 
-    cur.close()
-
-    conn.close()
+            cur.close()
+            conn.close()
 
     return render_template("students/add.html")
 

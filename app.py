@@ -1,7 +1,8 @@
-from flask import Flask, request, render_template, redirect
+from flask import Flask, request, render_template, redirect, flash
 import psycopg2
 import os
 app = Flask(__name__)
+app.secret_key = "edutrack_secret_key"
 
 @app.route('/')
 def index():
@@ -94,10 +95,12 @@ def add_student():
             )
 
             conn.commit()
+            flash("Student added successfully!", "success")
 
         except psycopg2.IntegrityError:
 
             conn.rollback()
+            flash("Roll Number already exists!", "danger")
 
         finally:
 

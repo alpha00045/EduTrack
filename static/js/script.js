@@ -30,3 +30,17 @@ document
     });
 
 });
+
+setTimeout(function () {
+
+    let alert = document.querySelector(".alert");
+
+    if (alert) {
+
+        let bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+
+        bsAlert.close();
+
+    }
+
+}, 3500);

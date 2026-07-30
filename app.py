@@ -65,9 +65,6 @@ def index():
         subjects=subjects
     )
 
-if __name__ == "__main__":
-    app.run(debug=True)
-    
 @app.route("/add_student", methods=["GET", "POST"])
 def add_student():
 
@@ -111,3 +108,7 @@ def add_student():
         return redirect("/")
 
     return render_template("students/add.html")
+
+if __name__ == "__main__":
+    app.run(debug=True)
+    

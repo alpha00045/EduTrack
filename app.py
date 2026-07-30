@@ -131,7 +131,7 @@ def student_details(roll):
                english
         FROM students
         WHERE roll_number=%s
-    """, (roll,))
+    """, (str(roll),))
 
     s = cur.fetchone()
 

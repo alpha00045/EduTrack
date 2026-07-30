@@ -192,7 +192,12 @@ EduTrack
                             </td>
                             <td>{{ s.roll }}</td>
 
-                            <td>{{ s.name }}</td>
+                            <td>
+                            <a href="/student/{{ student.roll }}"
+                               class="text-decoration-none fw-semibold">
+                                {{ student.name }}   
+                            </a>
+                            </td>
 
                             <td>{{ s.math if s.math != None else "-" }}</td>
 

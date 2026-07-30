@@ -65,24 +65,49 @@ def index():
         subjects=subjects
     )
 
-@app.route('/add', methods=['POST'])
-def add():
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    try:
-        cur.execute("INSERT INTO students (roll_number, name) VALUES (%s, %s)", 
-                    (request.form['roll'], request.form['name']))
-        conn.commit()
-    except psycopg2.IntegrityError:
-        pass
-    conn.close()
-    return redirect('/')
-
 if __name__ == "__main__":
     app.run(debug=True)
     
-@app.route("/add_student")
+@app.route("/add_student", methods=["GET", "POST"])
 def add_student():
+
+    if request.method == "POST":
+
+        DATABASE_URL = os.getenv("DATABASE_URL")
+
+        conn = psycopg2.connect(DATABASE_URL)
+
+        cur = conn.cursor()
+
+        try:
+
+            cur.execute(
+                """
+                INSERT INTO students
+                (roll_number, name, math, science, english)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    request.form["roll"],
+                    request.form["name"],
+                    request.form["math"],
+                    request.form["science"],
+                    request.form["english"]
+                )
+            )
+
+            conn.commit()
+
+        except psycopg2.IntegrityError:
+
+            conn.rollback()
+
+        finally:
+
+            cur.close()
+
+            conn.close()
+
+        return redirect("/")
 
     return render_template("students/add.html")

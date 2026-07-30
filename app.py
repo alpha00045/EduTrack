@@ -57,7 +57,7 @@ def index():
 
     conn.close()
     return render_template(
-        "index.html",
+       "students/list.html",
         students=student_data,
         total_students=total_students,
         class_average=class_average,
@@ -85,4 +85,4 @@ if __name__ == "__main__":
 @app.route("/add_student")
 def add_student():
 
-    return render_template("add_student.html")
+    return render_template("students/add.html")

@@ -114,6 +114,61 @@ def add_student():
 
     return render_template("students/add.html")
 
+@app.route("/student/<int:roll>")
+def student_details(roll):
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    conn = psycopg2.connect(DATABASE_URL)
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT roll_number,
+               name,
+               math,
+               science,
+               english
+        FROM students
+        WHERE roll_number=%s
+    """, (roll,))
+
+    s = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not s:
+        return "Student Not Found"
+
+    average = round((s[2] + s[3] + s[4]) / 3, 2)
+
+    if average >= 90:
+        grade = "A+"
+    elif average >= 80:
+        grade = "A"
+    elif average >= 70:
+        grade = "B"
+    elif average >= 60:
+        grade = "C"
+    else:
+        grade = "F"
+
+    student = {
+        "roll": s[0],
+        "name": s[1],
+        "math": s[2],
+        "science": s[3],
+        "english": s[4],
+        "average": average,
+        "grade": grade
+    }
+
+    return render_template(
+        "students/details.html",
+        student=student
+    )
+
 if __name__ == "__main__":
     app.run(debug=True)
     

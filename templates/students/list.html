@@ -1,0 +1,248 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}
+EduTrack
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-5">
+
+    <div class="text-center">
+
+        <h1 class="display-4 fw-bold">
+
+            Student Performance Tracker
+
+        </h1>
+
+        <p class="lead text-muted">
+
+            Monitor, Analyze and Manage Student Performance Efficiently
+
+        </p>
+
+    </div>
+
+</div>
+<div class="container mt-5">
+
+    <div class="row g-4">
+
+        <div class="col-md-3">
+
+            <div class="card text-center shadow border-0">
+
+                <div class="card-body">
+
+                    <h1>👨‍🎓</h1>
+
+                    <h5>Total Students</h5>
+
+                    <h2>{{ total_students }}</h2>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card text-center shadow border-0">
+
+                <div class="card-body">
+
+                    <h1>📈</h1>
+
+                    <h5>Class Average</h5>
+
+                    <h2>{{ class_average }}</h2>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card text-center shadow border-0">
+
+                <div class="card-body">
+
+                    <h1>🏆</h1>
+
+                    <h5>Highest Average</h5>
+
+                    <h2>{{ highest }}</h2>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card text-center shadow border-0">
+
+                <div class="card-body">
+
+                    <h1>📚</h1>
+
+                    <h5>Subjects</h5>
+
+                    <h2>{{ subjects }}</h2>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Student Table -->
+
+<div class="container mt-5">
+
+    <div class="card shadow border-0">
+
+        <div class="card-header bg-primary text-white">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <h4 class="mb-0">
+                    📋 Student Records
+                </h4>
+
+                <input type="text" id="searchInput" class="form-control w-25" placeholder="🔍 Search Student">
+
+            </div>
+
+        </div>
+
+        <div class="card-body">
+
+            <div class="table-responsive">
+
+                <table id="studentTable" class="table table-hover table-bordered align-middle">
+
+                    <thead class="table-dark">
+
+                        <tr>
+
+                            <th>Rank</th>
+                            <th>Roll No.</th>
+                            <th>Name</th>
+                            <th>Math</th>
+                            <th>Science</th>
+                            <th>English</th>
+                            <th>Average</th>
+                            <th>Progress</th>
+                            <th>Grade</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% for s in students %}
+                        {% set rank = loop.index %}
+
+                        <tr>
+                            <td>
+
+                                {% if rank == 1 %}
+
+                                🥇
+
+                                {% elif rank == 2 %}
+
+                                🥈
+
+                                {% elif rank == 3 %}
+
+                                🥉
+
+                                {% else %}
+
+                                {{ rank }}
+
+                                {% endif %}
+
+                            </td>
+                            <td>{{ s.roll }}</td>
+
+                            <td>{{ s.name }}</td>
+
+                            <td>{{ s.math if s.math != None else "-" }}</td>
+
+                            <td>{{ s.science if s.science != None else "-" }}</td>
+
+                            <td>{{ s.english if s.english != None else "-" }}</td>
+
+                            <td>{{ s.average }}</td>
+
+                            <td>
+
+                                <div class="progress">
+
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                        style="width: {{ s.average }}%;">
+
+                                        {{ s.average }}%
+
+                                    </div>
+
+                                </div>
+
+                            </td>
+
+                            <td>
+
+                                {% if s.grade == "A+" %}
+
+                                <span class="badge bg-success">{{ s.grade }}</span>
+
+                                {% elif s.grade == "A" %}
+
+                                <span class="badge bg-primary">{{ s.grade }}</span>
+
+                                {% elif s.grade == "B" %}
+
+                                <span class="badge bg-info text-dark">{{ s.grade }}</span>
+
+                                {% elif s.grade == "C" %}
+
+                                <span class="badge bg-warning text-dark">{{ s.grade }}</span>
+
+                                {% else %}
+
+                                <span class="badge bg-danger">{{ s.grade }}</span>
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

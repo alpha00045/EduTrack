@@ -77,38 +77,42 @@ def add_student():
 
         cur = conn.cursor()
 
-        try:
+try:
 
-            cur.execute(
-                """
-                INSERT INTO students
-                (roll_number, name, math, science, english)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (
-                    request.form["roll"],
-                    request.form["name"],
-                    request.form["math"],
-                    request.form["science"],
-                    request.form["english"]
-                )
-            )
+    cur.execute(
+        """
+        INSERT INTO students
+        (roll_number, name, math, science, english)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (
+            request.form["roll"],
+            request.form["name"],
+            request.form["math"],
+            request.form["science"],
+            request.form["english"]
+        )
+    )
 
-            conn.commit()
-            flash("Student added successfully!", "success")
+    conn.commit()
 
-        except psycopg2.IntegrityError:
+    flash("🎉 Student added successfully!", "success")
 
-            conn.rollback()
-            flash("Roll Number already exists!", "danger")
+    return redirect("/")
 
-        finally:
+except psycopg2.IntegrityError:
 
-            cur.close()
+    conn.rollback()
 
-            conn.close()
+    flash("❌ Roll Number already exists!", "danger")
 
-        return redirect("/")
+    return redirect("/add_student")
+
+finally:
+
+    cur.close()
+
+    conn.close()
 
     return render_template("students/add.html")
 

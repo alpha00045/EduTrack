@@ -6,7 +6,24 @@
 
 <div class="container mt-5 mb-5">
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
+    <div class="row justify-content-center">
+
+        <div class="col-lg-8">
+
+            <div class="card shadow-lg border-0 rounded-4">
+
+                <div class="card-header bg-primary text-white">
+
+                    <h3 class="mb-0">
+                        <i class="bi bi-person-plus-fill"></i>
+                        Add New Student
+                    </h3>
+
+                </div>
+
+                <div class="card-body p-4">
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
 
     {% if messages %}
 
@@ -30,22 +47,6 @@
 
 {% endwith %}
 
-    <div class="row justify-content-center">
-
-        <div class="col-lg-8">
-
-            <div class="card shadow-lg border-0 rounded-4">
-
-                <div class="card-header bg-primary text-white">
-
-                    <h3 class="mb-0">
-                        <i class="bi bi-person-plus-fill"></i>
-                        Add New Student
-                    </h3>
-
-                </div>
-
-                <div class="card-body p-4">
 
                     <form action="/add_student" method="POST">
 

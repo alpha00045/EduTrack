@@ -210,23 +210,19 @@ EduTrack
                             <td>
 
                                 <div class="progress">
-
-                                    {% if s.average >= 60 %}
-
-                                    <span class="progress-bar bg-success" role="progressbar"
-                                        style="width: {{ s.average }}%;"></span>
-                                        
+                                
+                                    <div class="progress-bar
+                                        {% if s.average >= 60 %}
+                                            bg-success
+                                        {% else %}
+                                            bg-danger
+                                        {% endif %}
+                                        text-center fw-bold" role="progressbar" style="width: {{ s.average }}%;">
+                                
                                         {{ s.average }}%
-                                    
-                                    {% else %}
-
-                                    <span class="progress-bar bg-danger" role="progressbar"
-                                        style="width: {{ s.average }}%;"></span>
-
-                                        {{ s.average }}%
-
-                                    {% endif %}
-
+                                
+                                    </div>
+                                
                                 </div>
 
                             </td>

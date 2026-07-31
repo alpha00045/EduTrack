@@ -211,12 +211,21 @@ EduTrack
 
                                 <div class="progress">
 
-                                    <div class="progress-bar bg-success" role="progressbar"
-                                        style="width: {{ s.average }}%;">
+                                    <div class="progress-bar bg-success"
+                                         role="progressbar"
+                                         data-average="{{ s.average }}"
+                                         aria-valuenow="{{ s.average }}"
+                                         aria-valuemax="100"
+                                         style="width: 0%;">
 
                                         {{ s.average }}%
 
                                     </div>
+
+                                    <script>
+                                        const progressBar = document.currentScript.previousElementSibling;
+                                        progressBar.style.width = progressBar.dataset.average + '%';
+                                    </script>
 
                                 </div>
 

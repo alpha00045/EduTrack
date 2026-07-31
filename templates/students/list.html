@@ -224,19 +224,19 @@ EduTrack
 
                             <td>
 
-                                {% if s.grade == "A+" %}
+                                {% if s.grade == "A1" or s.grade == "A2" %}
 
                                 <span class="badge bg-success">{{ s.grade }}</span>
 
-                                {% elif s.grade == "A" %}
+                                {% elif s.grade == "B1" or s.grade == "B2" %}
 
                                 <span class="badge bg-primary">{{ s.grade }}</span>
 
-                                {% elif s.grade == "B" %}
+                                {% elif s.grade == "C1" or s.grade == "C2" %}
 
                                 <span class="badge bg-info text-dark">{{ s.grade }}</span>
 
-                                {% elif s.grade == "C" %}
+                                {% elif s.grade == "D" %}
 
                                 <span class="badge bg-warning text-dark">{{ s.grade }}</span>
 

@@ -180,6 +180,83 @@ def student_details(roll):
         student=student
     )
 
+@app.route("/edit_student/<roll>", methods=["GET", "POST"])
+def edit_student(roll):
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    conn = psycopg2.connect(DATABASE_URL)
+
+    cur = conn.cursor()
+
+    if request.method == "POST":
+
+        cur.execute(
+            """
+            UPDATE students
+            SET
+                name=%s,
+                math=%s,
+                science=%s,
+                english=%s
+            WHERE roll_number=%s
+            """,
+            (
+                request.form["name"],
+                request.form["math"],
+                request.form["science"],
+                request.form["english"],
+                roll
+            )
+        )
+
+        conn.commit()
+
+        flash("✅ Student updated successfully!", "success")
+
+        cur.close()
+        conn.close()
+
+        return redirect("/")
+
+    cur.execute(
+        """
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
+        FROM students
+        WHERE roll_number=%s
+        """,
+        (roll,)
+    )
+
+    s = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not s:
+
+        return "Student Not Found"
+
+    student = {
+
+        "roll": s[0],
+        "name": s[1],
+        "math": s[2],
+        "science": s[3],
+        "english": s[4]
+
+    }
+
+    return render_template(
+        "students/edit.html",
+        student=student
+    )
+
 if __name__ == "__main__":
     app.run(debug=True)
     

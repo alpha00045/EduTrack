@@ -1,0 +1,188 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Edit Student | EduTrack{% endblock %}
+
+{% block content %}
+
+<div class="container mt-5 mb-5">
+
+    <div class="row justify-content-center">
+
+        <div class="col-lg-8">
+
+            <div class="card shadow-lg border-0 rounded-4">
+
+                <div class="card-header bg-primary text-white">
+
+                    <h3 class="mb-0">
+                        <i class="bi bi-person-plus-fill"></i>
+                        Edit Student
+                    </h3>
+
+                </div>
+
+                <div class="card-body p-4">
+
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+
+    {% if messages %}
+
+        {% for category, message in messages %}
+
+            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm">
+
+                {{ message }}
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert">
+                </button>
+
+            </div>
+
+        {% endfor %}
+
+    {% endif %}
+
+{% endwith %}
+
+
+                    <form action="/edit_student/{{ student.roll }}" method="POST">
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Roll Number
+                            </label>
+
+                           <input
+                              type="number"
+                              class="form-control"
+                              name="roll"
+                              value="{{ student.roll }}"
+                              readonly>
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Student Name
+                            </label>
+
+                            <input
+                                type="text"
+                                class="form-control"
+                                name="name"
+                                value="{{ student.name }}"
+                                required>
+
+                        </div>
+
+                        <div class="row">
+
+                            <div class="col-md-4">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label">
+
+                                        Math
+
+                                    </label>
+
+                                    <input
+    type="number"
+    class="form-control"
+    name="math"
+    value="{{ student.math }}"
+    min="0"
+    max="100"
+    required>
+
+                                </div>
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label">
+
+                                        Science
+
+                                    </label>
+
+                                    <input
+    type="number"
+    class="form-control"
+    name="math"
+    value="{{ student.science }}"
+    min="0"
+    max="100"
+    required>
+
+                                </div>
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <div class="mb-3">
+
+                                    <label class="form-label">
+
+                                        English
+
+                                    </label>
+
+                                    <input
+    type="number"
+    class="form-control"
+    name="math"
+    value="{{ student.English }}"
+    min="0"
+    max="100"
+    required>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+
+                            <button class="btn btn-primary btn-lg">
+
+                                <i class="bi bi-save"></i>
+
+                                Update Student
+
+                            </button>
+
+                            <button
+                                type="reset"
+                                class="btn btn-outline-secondary btn-lg">
+
+                                Reset
+
+                            </button>
+
+                        </div>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

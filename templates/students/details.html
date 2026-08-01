@@ -16,138 +16,137 @@
 
         </div>
 
-<div class="card-body text-center p-5">
+        <div class="card-body text-center p-5">
 
-    <i class="bi bi-person-circle display-1 text-primary"></i>
+            <i class="bi bi-person-circle display-1 text-primary"></i>
 
-    <h2 class="mt-3">
-        {{ student.name }}
-    </h2>
-
-    <p class="text-muted">
-        Roll Number : {{ student.roll }}
-    </p>
-
-    <hr>
-
-    <div class="row text-center">
-
-        <div class="col-md-4">
-
-            <div class="card shadow-sm">
-
-                <div class="card-body">
-
-                    <h5>📘 Math</h5>
-
-                    <h2>{{ student.math }}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-4">
-
-            <div class="card shadow-sm">
-
-                <div class="card-body">
-
-                    <h5>🧪 Science</h5>
-
-                    <h2>{{ student.science }}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-4">
-
-            <div class="card shadow-sm">
-
-                <div class="card-body">
-
-                    <h5>📖 English</h5>
-
-                    <h2>{{ student.english }}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <hr class="my-4">
-
-    <div class="row">
-
-        <div class="col-md-6">
-
-            <h4>
-                ⭐ Average
-            </h4>
-
-            <h2 class="text-success">
-
-                {{ student.average }}
-
+            <h2 class="mt-3">
+                {{ student.name }}
             </h2>
 
+            <p class="text-muted">
+                Roll Number : {{ student.roll }}
+            </p>
+
+            <hr>
+
+            <div class="row text-center">
+
+                <div class="col-md-4">
+
+                    <div class="card shadow-sm">
+
+                        <div class="card-body">
+
+                            <h5>📘 Math</h5>
+
+                            <h2>{{ student.math }}</h2>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="card shadow-sm">
+
+                        <div class="card-body">
+
+                            <h5>🧪 Science</h5>
+
+                            <h2>{{ student.science }}</h2>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-4">
+
+                    <div class="card shadow-sm">
+
+                        <div class="card-body">
+
+                            <h5>📖 English</h5>
+
+                            <h2>{{ student.english }}</h2>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row">
+
+                <div class="col-md-6">
+
+                    <h4>
+                        ⭐ Average
+                    </h4>
+
+                    <h2 class="text-success">
+
+                        {{ student.average }}
+
+                    </h2>
+
+                </div>
+
+                <div class="col-md-6">
+
+                    <h4>
+                        🏆 Grade
+                    </h4>
+
+                    <h2>
+
+                        {{ student.grade }}
+
+                    </h2>
+
+                </div>
+
+            </div>
+
+            <hr>
+
+            <div class="mt-4">
+
+                <a href="/edit_student/{{ student.roll }}" class="btn btn-warning me-2">
+
+                    <i class="bi bi-pencil-square"></i>
+
+                    Edit Student
+
+                </a>
+
+                <a href="#" class="btn btn-danger me-2">
+
+                    <i class="bi bi-trash"></i>
+
+                    Delete
+
+                </a>
+
+                <a href="/" class="btn btn-secondary">
+
+                    <i class="bi bi-arrow-left"></i>
+
+                    Dashboard
+
+                </a>
+
+            </div>
+
         </div>
-
-        <div class="col-md-6">
-
-            <h4>
-                🏆 Grade
-            </h4>
-
-            <h2>
-
-                {{ student.grade }}
-
-            </h2>
-
-        </div>
-
-    </div>
-
-    <hr>
-
-<div class="mt-4">
-
-<a href="/edit_student/{{ student.roll }}"
-   class="btn btn-warning me-2">
-
-    <i class="bi bi-pencil-square"></i>
-
-    Edit Student
-
-</a>
-
-    <a href="#" class="btn btn-danger me-2">
-
-        <i class="bi bi-trash"></i>
-
-        Delete
-
-    </a>
-
-    <a href="/" class="btn btn-secondary">
-
-        <i class="bi bi-arrow-left"></i>
-
-        Dashboard
-
-    </a>
-
-</div>
-
-</div>
 
     </div>
 

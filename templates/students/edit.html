@@ -23,29 +23,26 @@
 
                 <div class="card-body p-4">
 
-                        {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% with messages = get_flashed_messages(with_categories=true) %}
 
-    {% if messages %}
+                    {% if messages %}
 
-        {% for category, message in messages %}
+                    {% for category, message in messages %}
 
-            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm">
+                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm">
 
-                {{ message }}
+                        {{ message }}
 
-                <button
-                    type="button"
-                    class="btn-close"
-                    data-bs-dismiss="alert">
-                </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert">
+                        </button>
 
-            </div>
+                    </div>
 
-        {% endfor %}
+                    {% endfor %}
 
-    {% endif %}
+                    {% endif %}
 
-{% endwith %}
+                    {% endwith %}
 
 
                     <form action="/edit_student/{{ student.roll }}" method="POST">
@@ -56,12 +53,7 @@
                                 Roll Number
                             </label>
 
-                           <input
-                              type="number"
-                              class="form-control"
-                              name="roll"
-                              value="{{ student.roll }}"
-                              readonly>
+                            <input type="number" class="form-control" name="roll" value="{{ student.roll }}" readonly>
 
                         </div>
 
@@ -71,12 +63,7 @@
                                 Student Name
                             </label>
 
-                            <input
-                                type="text"
-                                class="form-control"
-                                name="name"
-                                value="{{ student.name }}"
-                                required>
+                            <input type="text" class="form-control" name="name" value="{{ student.name }}" required>
 
                         </div>
 
@@ -92,14 +79,8 @@
 
                                     </label>
 
-                                    <input
-    type="number"
-    class="form-control"
-    name="math"
-    value="{{ student.math }}"
-    min="0"
-    max="100"
-    required>
+                                    <input type="number" class="form-control" name="math" value="{{ student.math }}"
+                                        min="0" max="100" required>
 
                                 </div>
 
@@ -115,14 +96,8 @@
 
                                     </label>
 
-                                    <input
-    type="number"
-    class="form-control"
-    name="math"
-    value="{{ student.science }}"
-    min="0"
-    max="100"
-    required>
+                                    <input type="number" class="form-control" name="math" value="{{ student.science }}"
+                                        min="0" max="100" required>
 
                                 </div>
 
@@ -138,14 +113,8 @@
 
                                     </label>
 
-                                    <input
-    type="number"
-    class="form-control"
-    name="math"
-    value="{{ student.English }}"
-    min="0"
-    max="100"
-    required>
+                                    <input type="number" class="form-control" name="math" value="{{ student.English }}"
+                                        min="0" max="100" required>
 
                                 </div>
 
@@ -163,9 +132,7 @@
 
                             </button>
 
-                            <button
-                                type="reset"
-                                class="btn btn-outline-secondary btn-lg">
+                            <button type="reset" class="btn btn-outline-secondary btn-lg">
 
                                 Reset
 

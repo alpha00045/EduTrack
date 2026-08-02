@@ -114,3 +114,9 @@ background:#f8f9fa;
 cursor:pointer;
 
 }
+
+th:first-child,
+td:first-child{
+    width:70px;
+    text-align:center;
+}

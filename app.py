@@ -71,6 +71,64 @@ def index():
         subjects=subjects
     )
 
+@app.route("/view_students")
+def view_students():
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    conn = psycopg2.connect(DATABASE_URL)
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT roll_number,
+               name,
+               math,
+               science,
+               english
+        FROM students
+    """)
+
+    students = cur.fetchall()
+
+    student_data = []
+
+    for s in students:
+
+        marks = [m for m in [s[2], s[3], s[4]] if m is not None]
+
+        average = round(sum(marks) / len(marks), 2) if marks else 0
+
+        if average >= 90:
+            grade = "A+"
+        elif average >= 80:
+            grade = "A"
+        elif average >= 70:
+            grade = "B"
+        elif average >= 60:
+            grade = "C"
+        else:
+            grade = "F"
+
+        student_data.append({
+            "roll": s[0],
+            "name": s[1],
+            "math": s[2],
+            "science": s[3],
+            "english": s[4],
+            "average": average,
+            "grade": grade
+        })
+
+    student_data.sort(key=lambda x: x["average"], reverse=True)
+
+    conn.close()
+
+    return render_template(
+        "students/view_students.html",
+        students=student_data
+    )
+
 @app.route("/add_student", methods=["GET", "POST"])
 def add_student():
 

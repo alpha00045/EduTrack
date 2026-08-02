@@ -140,7 +140,9 @@ EduTrack/
 # 📸 Screenshots
 
 Project screenshots will be updated as I continue improving the UI.
+## Home
 
+![EduTrack Dashboard](static/images/home-v1.png)
 ## Dashboard
 
 ![EduTrack Dashboard](static/images/dashboard-v1.png)

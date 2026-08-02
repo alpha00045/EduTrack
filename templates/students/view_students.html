@@ -36,7 +36,7 @@ View Students
 
                         <tr>
 
-                            <th>Rank</th>
+                            <th>Sl.No</th>
                             <th>Roll No.</th>
                             <th>Name</th>
                             <th>Math</th>
@@ -53,30 +53,7 @@ View Students
                     <tbody>
 
                         {% for s in students %}
-                        {% set rank = loop.index %}
-
-                        <tr>
-                            <td>
-
-                                {% if rank == 1 %}
-
-                                🥇
-
-                                {% elif rank == 2 %}
-
-                                🥈
-
-                                {% elif rank == 3 %}
-
-                                🥉
-
-                                {% else %}
-
-                                {{ rank }}
-
-                                {% endif %}
-
-                            </td>
+                        
                             <td>{{ s.roll }}</td>
 
                             <td>

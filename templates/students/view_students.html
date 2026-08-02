@@ -53,7 +53,7 @@ View Students
                     <tbody>
 
                         {% for s in students %}
-                        
+                        {% set sl.no = loop.index %}
                             <td>{{ s.roll }}</td>
 
                             <td>

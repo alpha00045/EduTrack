@@ -100,13 +100,19 @@ def view_students():
         average = round(sum(marks) / len(marks), 2) if marks else 0
 
         if average >= 90:
-            grade = "A+"
+            grade = "A1"
         elif average >= 80:
-            grade = "A"
+            grade = "A2"
         elif average >= 70:
-            grade = "B"
+            grade = "B1"
         elif average >= 60:
-            grade = "C"
+            grade = "B2"
+        elif average >= 50:
+            grade = "C1"
+        elif average >= 40:
+            grade = "C2"
+        elif average >= 33:
+            grade = "D"
         else:
             grade = "F"
 

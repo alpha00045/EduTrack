@@ -81,12 +81,6 @@ table {
 
 }
 
-.table tbody tr:hover{
-
-    background:#eef5ff;
-
-}
-
 #searchInput{
 
     border-radius:30px;
@@ -103,15 +97,15 @@ th {
 td, th {
     padding: 12px;
 }
-table tbody tr:hover{
+.table tbody tr:hover{
 
-transform:scale(1.01);
+    transform: scale(1.01);
 
-transition:.3s;
+    transition: .3s;
 
-background:#f8f9fa;
+    background: #eef5ff;
 
-cursor:pointer;
+    cursor: pointer;
 
 }
 

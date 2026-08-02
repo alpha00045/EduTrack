@@ -2,27 +2,29 @@
 
 <div align="center">
 
-### Student Performance Analytics Platform
+### Student Management System
 
-*A modern Flask-powered student management and analytics system with PostgreSQL cloud database.*
+*A student management system built using Python, Flask, PostgreSQL and Bootstrap.*
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue?style=for-the-badge&logo=python)
 ![Flask](https://img.shields.io/badge/Flask-3.0-black?style=for-the-badge&logo=flask)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue?style=for-the-badge&logo=postgresql)
+![Bootstrap](https://img.shields.io/badge/Bootstrap-5-purple?style=for-the-badge&logo=bootstrap)
 ![Render](https://img.shields.io/badge/Render-Deployed-46E3B7?style=for-the-badge&logo=render)
-![GitHub](https://img.shields.io/badge/GitHub-Open%20Source-black?style=for-the-badge&logo=github)
 
 </div>
 
 ---
 
-# 📖 About EduTrack
+# 📖 About
 
-EduTrack is a modern **Student Performance Analytics Platform** built using **Python**, **Flask**, and **PostgreSQL**.
+EduTrack is a project that I started while learning Python. It was first built as a simple command-line application, and later I converted it into a web application using Flask and PostgreSQL.
 
-The project started as a Command Line Interface (CLI) application and is now evolving into a professional web-based analytics dashboard.
+The main goal of this project is to understand how a real Student Management System works by building it step by step instead of copying a complete project.
 
-It enables teachers and administrators to manage student records, assign grades, analyze academic performance, and visualize educational data through an intuitive web interface.
+While developing EduTrack, I am learning backend development, database management, frontend design, deployment, and GitHub project management.
+
+This project is still under development, and I continue adding new features as I learn.
 
 ---
 
@@ -30,49 +32,56 @@ It enables teachers and administrators to manage student records, assign grades,
 
 ## 👨‍🎓 Student Management
 
-- Add New Students
-- Unique Roll Number Validation
-- Edit Student Records *(Coming Soon)*
-- Delete Students *(Coming Soon)*
-- Search Students *(Coming Soon)*
+- ✅ Add New Student
+- ✅ View Student Details
+- ✅ Edit Student Information
+- ✅ Delete Student
+- ✅ Unique Roll Number Validation
+- 🚧 Student Search (Working on it)
 
 ---
 
 ## 📚 Academic Records
 
-- Assign Subject Marks
-- Grade Validation (0–100)
-- Automatic Average Calculation
-- Cloud Database Storage
+- Store marks for multiple subjects
+- Automatic average calculation
+- Automatic grade generation
+- Marks validation
+- PostgreSQL cloud database
 
 ---
 
-## 📊 Analytics
+## 🌐 Web Application
 
-- Subject Topper
-- Class Average
-- Student Average
-- Performance Dashboard *(In Development)*
-- Charts & Graphs *(Coming Soon)*
+- Responsive Flask website
+- Bootstrap 5 interface
+- Student profile page
+- Flash messages
+- Real-time database updates
+- Mobile-friendly design (Improving)
 
 ---
 
-## 🌐 Web Dashboard
+## 📊 Dashboard
 
-- Responsive Flask Website
-- Bootstrap 5 Interface
-- PostgreSQL Integration
-- Real-Time Database Updates
-- Mobile Friendly UI *(In Development)*
+Current Dashboard includes:
+
+- Student Ranking
+- Average Marks
+- Highest Score
+- Progress Bar
+- Grade Badges
+
+More dashboard improvements are coming soon.
 
 ---
 
 ## ☁ Deployment
 
 - Hosted on Render
-- Gunicorn Production Server
 - PostgreSQL Cloud Database
-- Environment Variable Configuration
+- Gunicorn Production Server
+- Environment Variables
 
 ---
 
@@ -94,95 +103,115 @@ It enables teachers and administrators to manage student records, assign grades,
 
 ```text
 EduTrack/
-│
+
 ├── app.py
-├── main.py
 ├── requirements.txt
 ├── Procfile
 ├── README.md
-├── User_Guide.txt
-├── student_backup.txt
-│
+
 ├── templates/
-│   ├── base.html
-│   └── index.html
+│
+├── layouts/
+│   └── base.html
+│
+├── partials/
+│   ├── navbar.html
+│   └── footer.html
+│
+├── students/
+│   ├── list.html
+│   ├── add.html
+│   ├── details.html
+│   └── edit.html
 │
 ├── static/
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   └── script.js
-│   └── images/
+│
+├── css/
+│   └── style.css
+│
+├── js/
+│   └── script.js
+│
+└── images/
 ```
+
 ---
 
 # 📸 Screenshots
 
-> Screenshots will be added as the UI development progresses.
-## 📸 Project Screenshot
+Project screenshots will be updated as I continue improving the UI.
+
+## Dashboard
 
 ![EduTrack Dashboard](static/images/dashboard-v1.png)
 
-```
-Homepage
-Dashboard 
-Analytics
-Student Management
-```
+---
+
+# 📈 Current Progress
+
+- ✅ CLI Application
+- ✅ Flask Web Application
+- ✅ PostgreSQL Integration
+- ✅ Render Deployment
+- ✅ Complete CRUD Operations
+- 🚧 Dashboard Redesign
+- 🚧 Student Search
+- 🚧 Analytics
 
 ---
 
-# 📈 Project Status
+# 🎯 Next Steps
 
-| Module | Status |
-|---------|--------|
-| CLI Application | ✅ Completed |
-| Flask Integration | ✅ Completed |
-| PostgreSQL Integration | ✅ Completed |
-| Render Deployment | ✅ Completed |
-| Responsive UI | 🚧 In Progress |
-| Dashboard | 🚧 In Progress |
-| Analytics | 🚧 In Progress |
-| Charts | ⏳ Planned |
-| Authentication | ⏳ Planned |
+The features I plan to add next are:
 
----
-
-# 🎯 Future Enhancements
-
+- Dashboard with Top 10 Students
+- View All Students Page
+- Search Students
+- Analytics Dashboard
+- Charts and Graphs
 - Student Login
-- Admin Authentication
+- Admin Login
 - Attendance Management
 - PDF Report Generation
 - Excel Export
-- Email Notifications
-- Performance Prediction
-- AI-Based Insights
+
+I will keep updating this project as I continue learning.
 
 ---
 
-# 🤝 Contributing
+# 🤝 Contributions
 
-Contributions, suggestions, and feature requests are welcome.
+Suggestions and ideas are always welcome.
 
-If you would like to improve EduTrack, feel free to fork the repository and submit a Pull Request.
+If you find something that can be improved, feel free to open an issue or submit a pull request.
 
 ---
 
-# 👨‍💻 Developer
+# 👨‍💻 About Me
 
-**Sagar Nayak**
+Hi, I'm **Sagar Nayak**.
 
-Aspiring Data Analyst & Python Developer
+I'm passionate about learning Python, Data Analytics, and Web Development by building practical projects instead of only following tutorials.
 
-GitHub: https://github.com/alpha00045
+EduTrack is one of my learning projects, and I continue improving it as I learn new technologies.
+
+GitHub:
+**https://github.com/alpha00045**
 
 ---
 
 # ⭐ Support
 
-If you found this project helpful,
+If you like this project, please consider giving it a ⭐.
 
-⭐ **Star this repository**
+It motivates me to keep learning and building better projects.
 
-It motivates me to build more open-source projects.
+---
+
+<div align="center">
+
+### Thanks for visiting my project ❤️
+
+I'm always learning, improving, and building.
+
+</div>

@@ -33,14 +33,14 @@ document
 
 setTimeout(function () {
 
-    let alert = document.querySelector(".alert");
+    let alerts = document.querySelectorAll(".alert");
 
-    if (alert) {
+    alerts.forEach(function (alert) {
 
         let bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
 
         bsAlert.close();
 
-    }
+    });
 
 }, 3500);

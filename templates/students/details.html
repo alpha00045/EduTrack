@@ -128,13 +128,22 @@
 
                 </a>
 
-                <a href="#" class="btn btn-danger me-2">
+                <form action="/delete_student/{{ student.roll }}"
+      method="POST"
+      class="d-inline">
 
-                    <i class="bi bi-trash"></i>
+    <button
+        type="submit"
+        class="btn btn-danger"
+        onclick="return confirm('⚠️ Are you sure you want to delete this student?')">
 
-                    Delete
+        <i class="bi bi-trash"></i>
 
-                </a>
+        Delete Student
+
+    </button>
+
+</form>
 
                 <a href="/" class="btn btn-secondary">
 

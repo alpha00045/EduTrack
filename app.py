@@ -46,7 +46,7 @@ def index():
             "grade": grade
         })
     student_data.sort(key=lambda x: x["average"], reverse=True)
-    total_students = len(students)
+    top_students = student_data[:10]
     averages = []
     highest = 0
 

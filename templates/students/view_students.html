@@ -36,7 +36,7 @@ View Students
 
                         <tr>
 
-                            <th>Sl.No</th>
+                            <th class="text-center">#</th>
                             <th>Roll No.</th>
                             <th>Name</th>
                             <th>Math</th>
@@ -53,8 +53,8 @@ View Students
                     <tbody>
 
                         {% for s in students %}
-                            <td>{{ loop.index }}</td>
-                            <td>{{ s.roll }}</td>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td class="text-center">{{ s.roll }}</td>
                             <td>
                             <a href="/student/{{ s.roll }}"
                                class="text-decoration-none fw-semibold">

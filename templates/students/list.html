@@ -202,52 +202,6 @@ EduTrack
 
                             <td>{{ s.average }}</td>
 
-                            <td>
-
-                                <div class="progress">
-                                
-                                    <div class="progress-bar
-                                        {% if s.average >= 60 %}
-                                            bg-success
-                                        {% else %}
-                                            bg-danger
-                                        {% endif %}
-                                        text-center fw-bold" role="progressbar" style="width: {{ s.average }}%;">
-                                
-                                        {{ s.average }}%
-                                
-                                    </div>
-                                
-                                </div>
-
-                            </td>
-
-                            <td>
-
-                                {% if s.grade == "A1" or s.grade == "A2" %}
-
-                                <span class="badge bg-success">{{ s.grade }}</span>
-
-                                {% elif s.grade == "B1" or s.grade == "B2" %}
-
-                                <span class="badge bg-primary">{{ s.grade }}</span>
-
-                                {% elif s.grade == "C1" or s.grade == "C2" %}
-
-                                <span class="badge bg-info text-dark">{{ s.grade }}</span>
-
-                                {% elif s.grade == "D" %}
-
-                                <span class="badge bg-warning text-dark">{{ s.grade }}</span>
-
-                                {% else %}
-
-                                <span class="badge bg-danger">{{ s.grade }}</span>
-
-                                {% endif %}
-
-                            </td>
-
                         </tr>
 
                         {% endfor %}

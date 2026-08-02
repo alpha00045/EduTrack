@@ -257,6 +257,32 @@ def edit_student(roll):
         student=student
     )
 
+@app.route("/delete_student/<roll>", methods=["POST"])
+def delete_student(roll):
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    conn = psycopg2.connect(DATABASE_URL)
+
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM students
+        WHERE roll_number = %s
+        """,
+        (roll,)
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    flash("🗑️ Student deleted successfully!", "success")
+
+    return redirect("/")
+
 if __name__ == "__main__":
     app.run(debug=True)
     

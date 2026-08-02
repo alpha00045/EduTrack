@@ -20,7 +20,7 @@
 
 EduTrack is a project that I started while learning Python. It was first built as a simple command-line application, and later I converted it into a web application using Flask and PostgreSQL.
 
-The main goal of this project is to understand how a real Student Management System works by building it step by step instead of copying a complete project.
+The main goal of this project is to understand how a real Student Management System works by building it step by step.
 
 While developing EduTrack, I am learning backend development, database management, frontend design, deployment, and GitHub project management.
 

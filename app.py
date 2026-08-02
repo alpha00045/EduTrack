@@ -46,6 +46,7 @@ def index():
             "grade": grade
         })
     student_data.sort(key=lambda x: x["average"], reverse=True)
+    total_students = len(student_data)
     top_students = student_data[:10]
     averages = []
     highest = 0
@@ -64,7 +65,7 @@ def index():
     conn.close()
     return render_template(
        "students/list.html",
-        students=student_data,
+        students=top_students,
         total_students=total_students,
         class_average=class_average,
         highest=round(highest, 2),

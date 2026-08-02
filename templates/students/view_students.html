@@ -53,9 +53,8 @@ View Students
                     <tbody>
 
                         {% for s in students %}
-                        {% set sl.no = loop.index %}
+                            <td>{{ loop.index }}</td>
                             <td>{{ s.roll }}</td>
-
                             <td>
                             <a href="/student/{{ s.roll }}"
                                class="text-decoration-none fw-semibold">

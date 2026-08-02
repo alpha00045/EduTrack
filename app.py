@@ -126,7 +126,7 @@ def view_students():
             "grade": grade
         })
 
-    student_data.sort(key=lambda x: x["average"], reverse=True)
+    student_data.sort(key=lambda x: int(x["roll"]))
 
     conn.close()
 

@@ -117,7 +117,6 @@
             </div>
 
             <hr>
-
             <div class="mt-4">
 
                 <a href="/edit_student/{{ student.roll }}" class="btn btn-warning me-2">
@@ -127,22 +126,15 @@
                     Edit Student
 
                 </a>
+                <form action="/delete_student/{{ student.roll }}" method="POST" class="d-inline">
 
-                <form action="/delete_student/{{ student.roll }}"
-      method="POST"
-      class="d-inline">
+                    <button type="submit" class="btn btn-danger" <i class="bi bi-trash"></i>
 
-    <button
-        type="submit"
-        class="btn btn-danger"
+                        Delete Student
 
-        <i class="bi bi-trash"></i>
+                    </button>
 
-        Delete Student
-
-    </button>
-
-</form>
+                </form>
 
                 <a href="/" class="btn btn-secondary">
 

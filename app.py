@@ -322,31 +322,64 @@ def edit_student(roll):
         student=student
     )
 
-@app.route("/delete_student/<roll>", methods=["POST"])
+@app.route("/delete_student/<roll>", methods=["GET", "POST"])
 def delete_student(roll):
 
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     conn = psycopg2.connect(DATABASE_URL)
-
     cur = conn.cursor()
 
-    cur.execute(
-        """
-        DELETE FROM students
+    # Fetch student details
+    cur.execute("""
+        SELECT roll_number,
+               name,
+               math,
+               science,
+               english
+        FROM students
         WHERE roll_number = %s
-        """,
-        (roll,)
-    )
+    """, (str(roll),))
 
-    conn.commit()
+    s = cur.fetchone()
+
+    if not s:
+        cur.close()
+        conn.close()
+        return "Student Not Found"
+
+    student = {
+        "roll": s[0],
+        "name": s[1],
+        "math": s[2],
+        "science": s[3],
+        "english": s[4]
+    }
+
+    # Delete only after confirmation
+    if request.method == "POST":
+
+        cur.execute(
+            "DELETE FROM students WHERE roll_number = %s",
+            (str(roll),)
+        )
+
+        conn.commit()
+
+        cur.close()
+        conn.close()
+
+        flash("🗑 Student deleted successfully!", "success")
+
+        return redirect("/")
 
     cur.close()
     conn.close()
 
-    flash("🗑️ Student deleted successfully!", "success")
-
-    return redirect("/")
+    return render_template(
+        "students/delete.html",
+        student=student
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

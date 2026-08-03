@@ -1,35 +1,40 @@
-document
-.getElementById("searchInput")
-.addEventListener("keyup", function () {
+const searchInput = document.getElementById("searchInput");
 
-    let filter =
-        this.value.toLowerCase();
+if (searchInput) {
 
-    let rows =
-        document.querySelectorAll(
-            "#studentTable tbody tr"
-        );
+    searchInput.addEventListener("keyup", function () {
 
-    rows.forEach(function (row) {
+        const filter = this.value.toLowerCase().trim();
 
-        let text =
-            row.innerText.toLowerCase();
+        const rows = document.querySelectorAll("#studentTable tbody tr");
 
-        if (text.includes(filter)) {
+        rows.forEach(function (row) {
 
-            row.style.display = "";
+            const roll = row.querySelector(".roll").innerText.toLowerCase();
 
-        }
+            const name = row.querySelector(".name").innerText.toLowerCase();
 
-        else {
+            const grade = row.querySelector(".grade").innerText.toLowerCase();
 
-            row.style.display = "none";
+            if (
+                roll.includes(filter) ||
+                name.includes(filter) ||
+                grade.includes(filter)
+            ) {
 
-        }
+                row.style.display = "";
+
+            } else {
+
+                row.style.display = "none";
+
+            }
+
+        });
 
     });
 
-});
+}
 
 setTimeout(function () {
 

@@ -52,10 +52,12 @@ View Students
 
                     <tbody>
 
+                        <tr>
+
                         {% for s in students %}
                             <td class="text-center">{{ loop.index }}</td>
-                            <td class="text-center">{{ s.roll }}</td>
-                            <td>
+                            <td class="text-center roll">{{ s.roll }}</td>
+                            <td class="name">
                             <a href="/student/{{ s.roll }}"
                                class="text-decoration-none fw-semibold">
                                 {{ s.name }}   
@@ -90,7 +92,7 @@ View Students
 
                             </td>
 
-                            <td>
+                            <td class="grade">
 
                                 {% if s.grade == "A1" or s.grade == "A2" %}
 

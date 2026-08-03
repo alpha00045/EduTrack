@@ -1,6 +1,8 @@
 from flask import Flask, request, render_template, redirect, flash
 import psycopg2
 import os
+import csv
+from flask import Response
 app = Flask(__name__)
 app.secret_key = "edutrack_secret_key"
 
@@ -379,6 +381,47 @@ def delete_student(roll):
     return render_template(
         "students/delete.html",
         student=student
+    )
+
+@app.route("/export_csv")
+def export_csv():
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    conn = psycopg2.connect(DATABASE_URL)
+
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
+        FROM students
+        ORDER BY roll_number
+    """)
+
+    students = cur.fetchall()
+
+    conn.close()
+
+    def generate():
+
+        yield "Roll Number,Name,Math,Science,English\n"
+
+        for s in students:
+
+            yield f"{s[0]},{s[1]},{s[2]},{s[3]},{s[4]}\n"
+
+    return Response(
+        generate(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition":
+            "attachment; filename=students.csv"
+        }
     )
 
 if __name__ == "__main__":

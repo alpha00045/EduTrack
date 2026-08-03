@@ -76,7 +76,9 @@ if (sortSelect) {
 
         });
 
-        rows.forEach(function (row) {
+            rows.forEach(function (row, index) {
+
+            row.cells[0].innerText = index + 1;
 
             tbody.appendChild(row);
 

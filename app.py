@@ -472,21 +472,20 @@ def export_excel():
         "English"
     ])
 
-    header_fill = PatternFill(
-        fill_type="solid",
-        start_color="0D6EFD",
-        end_color="0D6EFD"
-    )
+header_fill = PatternFill(
+    fill_type="solid",
+    fgColor="0D6EFD"
+)
 
-    header_font = Font(
-        bold=True,
-        color="FFFFFF"
-    )
+header_font = Font(
+    bold=True,
+    color="FFFFFF"
+)
 
-    center = Alignment(
-        horizontal="center",
-        vertical="center"
-    )
+center = Alignment(
+    horizontal="center",
+    vertical="center"
+)
 
     for cell in sheet[1]:
         cell.fill = header_fill
@@ -496,16 +495,19 @@ def export_excel():
     for student in students:
         sheet.append(student)
 
-    for column in sheet.columns:
-        length = max(
-            len(str(cell.value))
-            if cell.value else 0
-            for cell in column
-        )
+for column_cells in sheet.columns:
 
-        sheet.column_dimensions[
-            column[0].column_letter
-        ].width = length + 4
+    max_length = 0
+
+    column_letter = column_cells[0].column_letter
+
+    for cell in column_cells:
+
+        if cell.value is not None:
+
+            max_length = max(max_length, len(str(cell.value)))
+
+    sheet.column_dimensions[column_letter].width = max_length + 5
 
     for row in sheet.iter_rows(min_row=2):
         for cell in row:

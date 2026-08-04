@@ -1,9 +1,20 @@
-from flask import Flask, request, render_template, redirect, flash
+from flask import (
+    Flask,
+    request,
+    render_template,
+    redirect,
+    flash,
+    Response,
+    send_file
+)
+
 import psycopg2
 import os
 import csv
+
+from io import BytesIO
 from openpyxl import Workbook
-from flask import Response
+
 app = Flask(__name__)
 app.secret_key = "edutrack_secret_key"
 
@@ -423,6 +434,58 @@ def export_csv():
             "Content-Disposition":
             "attachment; filename=students.csv"
         }
+    )
+
+@app.route("/export_excel")
+def export_excel():
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
+        FROM students
+        ORDER BY roll_number
+    """)
+
+    students = cur.fetchall()
+
+    conn.close()
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Students"
+
+    sheet.append([
+        "Roll Number",
+        "Name",
+        "Math",
+        "Science",
+        "English"
+    ])
+
+    for student in students:
+
+        sheet.append(student)
+
+    excel_file = BytesIO()
+
+    workbook.save(excel_file)
+
+    excel_file.seek(0)
+
+    return send_file(
+        excel_file,
+        download_name="students.xlsx",
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 if __name__ == "__main__":

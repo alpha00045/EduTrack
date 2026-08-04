@@ -586,13 +586,14 @@ def login():
 
     return render_template("auth/login.html")
 
-@app.route("/check")
-def check():
+@app.route("/logout")
+def logout():
 
-    if "admin" in session:
-        return f"Logged in as {session['admin']}"
+    session.pop("admin", None)
 
-    return "Not Logged In"
+    flash("Logged out successfully!", "success")
+
+    return redirect("/")
 
 if __name__ == "__main__":
     app.run(debug=True)

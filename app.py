@@ -570,6 +570,26 @@ def export_excel():
         mimetype="application/vnd.openxmlformats-officedocument/spreadsheetml.sheet"
     )
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+
+    if request.method == "POST":
+
+        username = request.form["username"]
+        password = request.form["password"]
+
+        if username == "admin" and password == "edutrack123":
+
+            flash("Login Successful!", "success")
+
+            return redirect("/")
+
+        else:
+
+            flash("Invalid Username or Password!", "danger")
+
+    return render_template("auth/login.html")
+
 if __name__ == "__main__":
     app.run(debug=True)
     

@@ -168,6 +168,7 @@ def view_students():
     )
 
 @app.route("/add_student", methods=["GET", "POST"])
+@admin_required
 def add_student():
 
     if request.method == "POST":
@@ -277,6 +278,7 @@ def student_details(roll):
     )
 
 @app.route("/edit_student/<roll>", methods=["GET", "POST"])
+@admin_required
 def edit_student(roll):
 
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -354,6 +356,7 @@ def edit_student(roll):
     )
 
 @app.route("/delete_student/<roll>", methods=["GET", "POST"])
+@admin_required
 def delete_student(roll):
 
     DATABASE_URL = os.getenv("DATABASE_URL")

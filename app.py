@@ -504,10 +504,21 @@ def export_excel():
                 max_length = max(max_length, len(str(cell.value)))
 
         sheet.column_dimensions[column_letter].width = max_length + 5
-
+  
+    sheet.freeze_panes = "A2"
+    
+    sheet.auto_filter.ref = sheet.dimensions
+    
+    left = Alignment(horizontal="left")
+    center = Alignment(horizontal="center")
+    
     for row in sheet.iter_rows(min_row=2):
-        for cell in row:
-            cell.alignment = center
+
+        row[0].alignment = center      # Roll Number
+        row[1].alignment = left        # Name
+        row[2].alignment = center      # Math
+        row[3].alignment = center      # Science
+        row[4].alignment = center      # English
 
     excel_file = BytesIO()
     workbook.save(excel_file)

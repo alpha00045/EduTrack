@@ -13,7 +13,8 @@ import os
 import csv
 
 from io import BytesIO
-from openpyxl import Workbook
+from openpyxl import Workbook, workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 
 app = Flask(__name__)
 app.secret_key = "edutrack_secret_key"
@@ -471,9 +472,44 @@ def export_excel():
         "English"
     ])
 
-    for student in students:
+    header_fill = PatternFill(
+        fill_type="solid",
+        start_color="0D6EFD",
+        end_color="0D6EFD"
+    )
 
+    header_font = Font(
+        bold=True,
+        color="FFFFFF"
+    )
+
+    center = Alignment(
+        horizontal="center",
+        vertical="center"
+    )
+
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center
+
+    for student in students:
         sheet.append(student)
+
+    for column in sheet.columns:
+        length = max(
+            len(str(cell.value))
+            if cell.value else 0
+            for cell in column
+        )
+
+        sheet.column_dimensions[
+            column[0].column_letter
+        ].width = length + 4
+
+    for row in sheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = center
 
     excel_file = BytesIO()
 

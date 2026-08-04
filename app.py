@@ -5,7 +5,8 @@ from flask import (
     redirect,
     flash,
     Response,
-    send_file
+    send_file,
+    session
 )
 
 import psycopg2
@@ -572,23 +573,26 @@ def export_excel():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-
     if request.method == "POST":
-
         username = request.form["username"]
         password = request.form["password"]
 
         if username == "admin" and password == "edutrack123":
-
+            session["admin"] = username
             flash("Login Successful!", "success")
-
             return redirect("/")
-
         else:
-
             flash("Invalid Username or Password!", "danger")
 
     return render_template("auth/login.html")
+
+@app.route("/check")
+def check():
+
+    if "admin" in session:
+        return f"Logged in as {session['admin']}"
+
+    return "Not Logged In"
 
 if __name__ == "__main__":
     app.run(debug=True)

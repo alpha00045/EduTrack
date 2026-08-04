@@ -469,7 +469,9 @@ def export_excel():
         "Name",
         "Math",
         "Science",
-        "English"
+        "English",
+        "Average",
+        "Grade"
     ])
 
     header_fill = PatternFill(
@@ -492,8 +494,45 @@ def export_excel():
         cell.font = header_font
         cell.alignment = center
 
-    for student in students:
-        sheet.append(student)
+   for student in students:
+
+    marks = [
+        m for m in [
+            student[2],
+            student[3],
+            student[4]
+        ]
+        if m is not None
+    ]
+
+    average = round(sum(marks) / len(marks), 2) if marks else 0
+
+    if average >= 90:
+        grade = "A1"
+    elif average >= 80:
+        grade = "A2"
+    elif average >= 70:
+        grade = "B1"
+    elif average >= 60:
+        grade = "B2"
+    elif average >= 50:
+        grade = "C1"
+    elif average >= 40:
+        grade = "C2"
+    elif average >= 33:
+        grade = "D"
+    else:
+        grade = "F"
+
+    sheet.append([
+        student[0],
+        student[1],
+        student[2],
+        student[3],
+        student[4],
+        average,
+        grade
+    ])
 
     for column_cells in sheet.columns:
         max_length = 0
@@ -514,11 +553,13 @@ def export_excel():
     
     for row in sheet.iter_rows(min_row=2):
 
-        row[0].alignment = center      # Roll Number
-        row[1].alignment = left        # Name
-        row[2].alignment = center      # Math
-        row[3].alignment = center      # Science
-        row[4].alignment = center      # English
+        row[0].alignment = center
+        row[1].alignment = left
+        row[2].alignment = center
+        row[3].alignment = center
+        row[4].alignment = center
+        row[5].alignment = center
+        row[6].alignment = center
 
     excel_file = BytesIO()
     workbook.save(excel_file)

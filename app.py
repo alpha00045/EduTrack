@@ -416,6 +416,7 @@ def delete_student(roll):
     )
 
 @app.route("/export_csv")
+@admin_required
 def export_csv():
 
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -457,6 +458,7 @@ def export_csv():
     )
 
 @app.route("/export_excel")
+@admin_required
 def export_excel():
 
     DATABASE_URL = os.getenv("DATABASE_URL")

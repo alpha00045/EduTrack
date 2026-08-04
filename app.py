@@ -472,20 +472,20 @@ def export_excel():
         "English"
     ])
 
-header_fill = PatternFill(
-    fill_type="solid",
-    fgColor="0D6EFD"
-)
+    header_fill = PatternFill(
+        fill_type="solid",
+        fgColor="0D6EFD"
+    )
 
-header_font = Font(
-    bold=True,
-    color="FFFFFF"
-)
+    header_font = Font(
+        bold=True,
+        color="FFFFFF"
+    )
 
-center = Alignment(
-    horizontal="center",
-    vertical="center"
-)
+    center = Alignment(
+        horizontal="center",
+        vertical="center"
+    )
 
     for cell in sheet[1]:
         cell.fill = header_fill
@@ -495,35 +495,29 @@ center = Alignment(
     for student in students:
         sheet.append(student)
 
-for column_cells in sheet.columns:
+    for column_cells in sheet.columns:
+        max_length = 0
+        column_letter = column_cells[0].column_letter
 
-    max_length = 0
+        for cell in column_cells:
+            if cell.value is not None:
+                max_length = max(max_length, len(str(cell.value)))
 
-    column_letter = column_cells[0].column_letter
-
-    for cell in column_cells:
-
-        if cell.value is not None:
-
-            max_length = max(max_length, len(str(cell.value)))
-
-    sheet.column_dimensions[column_letter].width = max_length + 5
+        sheet.column_dimensions[column_letter].width = max_length + 5
 
     for row in sheet.iter_rows(min_row=2):
         for cell in row:
             cell.alignment = center
 
     excel_file = BytesIO()
-
     workbook.save(excel_file)
-
     excel_file.seek(0)
 
     return send_file(
         excel_file,
         download_name="students.xlsx",
         as_attachment=True,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mimetype="application/vnd.openxmlformats-officedocument/spreadsheetml.sheet"
     )
 
 if __name__ == "__main__":

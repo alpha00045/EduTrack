@@ -19,6 +19,21 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 app = Flask(__name__)
 app.secret_key = "edutrack_secret_key"
+from functools import wraps
+def admin_required(f):
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+
+        if "admin" not in session:
+
+            flash("Please login as Admin first.", "warning")
+
+            return redirect("/login")
+
+        return f(*args, **kwargs)
+
+    return decorated_function
 
 @app.route('/')
 def index():

@@ -42,12 +42,13 @@
                             </a>
                         </li>
 
+                        {% if session.get("admin") %}
                         <li>
                             <a class="dropdown-item" href="/add_student">
                                 Add Student
                             </a>
                         </li>
-
+                        {% endif %}
                     </ul>
 
                 </li>
@@ -61,7 +62,7 @@
                     </a>
 
                     <ul class="dropdown-menu">
-
+                        {% if session.get("admin") %}
                         <li>
                             <a class="dropdown-item" href="/export_csv">
 
@@ -81,7 +82,7 @@
                         <li>
                             <hr class="dropdown-divider">
                         </li>
-
+                        {% endif %}
                         <li>
 
                             <span class="dropdown-item text-muted">

@@ -155,61 +155,46 @@ def index():
 @app.route("/view_students")
 def view_students():
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    conn = psycopg2.connect(DATABASE_URL)
-
+    conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT roll_number,
-               name,
-               math,
-               science,
-               english
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
         FROM students
+        ORDER BY roll_number
     """)
 
     students = cur.fetchall()
 
+    cur.close()
+    conn.close()
+
     student_data = []
 
-    for s in students:
+    for student in students:
 
-        marks = [m for m in [s[2], s[3], s[4]] if m is not None]
+        average = calculate_average([
+            student[2],
+            student[3],
+            student[4]
+        ])
 
-        average = round(sum(marks) / len(marks), 2) if marks else 0
-
-        if average >= 90:
-            grade = "A1"
-        elif average >= 80:
-            grade = "A2"
-        elif average >= 70:
-            grade = "B1"
-        elif average >= 60:
-            grade = "B2"
-        elif average >= 50:
-            grade = "C1"
-        elif average >= 40:
-            grade = "C2"
-        elif average >= 33:
-            grade = "D"
-        else:
-            grade = "F"
+        grade = calculate_grade(average)
 
         student_data.append({
-            "roll": s[0],
-            "name": s[1],
-            "math": s[2],
-            "science": s[3],
-            "english": s[4],
+            "roll": student[0],
+            "name": student[1],
+            "math": student[2],
+            "science": student[3],
+            "english": student[4],
             "average": average,
             "grade": grade
         })
-
-    student_data.sort(key=lambda x: int(x["roll"]))
-
-    conn.close()
 
     return render_template(
         "students/view_students.html",
@@ -268,64 +253,51 @@ def add_student():
 @app.route("/student/<int:roll>")
 def student_details(roll):
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    conn = psycopg2.connect(DATABASE_URL)
-
+    conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT roll_number,
-               name,
-               math,
-               science,
-               english
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
         FROM students
-        WHERE roll_number=%s
-    """, (str(roll),))
+        WHERE roll_number = %s
+    """, (roll,))
 
-    s = cur.fetchone()
+    student = cur.fetchone()
 
     cur.close()
     conn.close()
 
-    if not s:
+    if not student:
         return "Student Not Found"
 
-    average = round((s[2] + s[3] + s[4]) / 3, 2)
+    average = calculate_average([
+        student[2],
+        student[3],
+        student[4]
+    ])
 
-    if average >= 90:
-        grade = "A1"
-    elif average >= 80:
-        grade = "A2"
-    elif average >= 70:
-        grade = "B1"
-    elif average >= 60:
-        grade = "B2"
-    elif average >= 50:
-        grade = "C1"
-    elif average >= 40:
-        grade = "C2"
-    elif average >= 33:
-        grade = "D"
-    else:
-        grade = "F"
+    grade = calculate_grade(average)
 
-    student = {
-        "roll": s[0],
-        "name": s[1],
-        "math": s[2],
-        "science": s[3],
-        "english": s[4],
+    student_data = {
+        "roll": student[0],
+        "name": student[1],
+        "math": student[2],
+        "science": student[3],
+        "english": student[4],
         "average": average,
         "grade": grade
     }
 
     return render_template(
         "students/details.html",
-        student=student
+        student=student_data
     )
-
+    
 @app.route("/edit_student/<roll>", methods=["GET", "POST"])
 @admin_required
 def edit_student(roll):

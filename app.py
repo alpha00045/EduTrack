@@ -9,17 +9,52 @@ from flask import (
     session
 )
 
-import psycopg2
-import os
-import csv
-
+from functools import wraps
 from io import BytesIO
-from openpyxl import Workbook, workbook
+
+import os
+import psycopg2
+
+from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
+
 
 app = Flask(__name__)
 app.secret_key = "edutrack_secret_key"
-from functools import wraps
+
+def get_db_connection():
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    return psycopg2.connect(DATABASE_URL)
+
+
+def calculate_average(marks):
+    valid_marks = [mark for mark in marks if mark is not None]
+
+    if not valid_marks:
+        return 0
+
+    return round(sum(valid_marks) / len(valid_marks), 2)
+
+
+def calculate_grade(average):
+
+    if average >= 90:
+        return "A1"
+    elif average >= 80:
+        return "A2"
+    elif average >= 70:
+        return "B1"
+    elif average >= 60:
+        return "B2"
+    elif average >= 50:
+        return "C1"
+    elif average >= 40:
+        return "C2"
+    elif average >= 33:
+        return "D"
+    else:
+        return "F"
+        
 def admin_required(f):
 
     @wraps(f)
@@ -35,74 +70,88 @@ def admin_required(f):
 
     return decorated_function
 
-@app.route('/')
+@app.route("/")
 def index():
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(DATABASE_URL)
+
+    conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT roll_number, name, math, science, english FROM students")
+
+    cur.execute("""
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
+        FROM students
+    """)
+
     students = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
     student_data = []
 
-    for s in students:
-        marks = [m for m in [s[2], s[3], s[4]] if m is not None]
-        if marks:
-            average = round(sum(marks) / len(marks), 2)
-        else:
-            average = 0
-        if average >= 90:
-            grade = "A1"
-        elif average >= 80:
-            grade = "A2"
-        elif average >= 70:
-            grade = "B1"
-        elif average >= 60:
-            grade = "B2"
-        elif average >= 50:
-            grade = "C1"
-        elif average >= 40:
-            grade = "C2"
-        elif average >= 33:
-            grade = "D"
-        else:
-            grade = "F"
+    for student in students:
+
+        average = calculate_average([
+            student[2],
+            student[3],
+            student[4]
+        ])
+
+        grade = calculate_grade(average)
 
         student_data.append({
-            "roll": s[0],
-            "name": s[1],
-            "math": s[2],
-            "science": s[3],
-            "english": s[4],
+            "roll": student[0],
+            "name": student[1],
+            "math": student[2],
+            "science": student[3],
+            "english": student[4],
             "average": average,
             "grade": grade
         })
-    student_data.sort(key=lambda x: x["average"], reverse=True)
+
+# Highest average first
+    student_data.sort(
+        key=lambda x: x["average"],
+        reverse=True
+    )
+
     total_students = len(student_data)
+
     top_students = student_data[:10]
-    averages = []
-    highest = 0
 
-    for student in students:
-        marks = [m for m in [student[2], student[3], student[4]] if m is not None]
-        if marks:
-            avg = sum(marks) / len(marks)
-            averages.append(avg)
-            if avg > highest:
-                highest = avg
+    averages = [
+        student["average"]
+        for student in student_data
+        if student["average"] > 0
+    ]
 
-    class_average = round(sum(averages) / len(averages), 2) if averages else 0
+    class_average = (
+        round(sum(averages) / len(averages), 2)
+        if averages
+        else 0
+    )
+
+    highest = (
+        max(averages)
+        if averages
+        else 0
+    )
+
     subjects = 3
 
-    conn.close()
     return render_template(
-       "students/list.html",
+        "students/list.html",
         students=top_students,
         total_students=total_students,
         class_average=class_average,
-        highest=round(highest, 2),
+        highest=highest,
         subjects=subjects
     )
-
+    
 @app.route("/view_students")
 def view_students():
 

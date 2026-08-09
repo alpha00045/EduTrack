@@ -265,7 +265,7 @@ def student_details(roll):
             english
         FROM students
         WHERE roll_number = %s
-    """, (roll,))
+    """, (str(roll),))
 
     student = cur.fetchone()
 
@@ -349,7 +349,7 @@ def edit_student(roll):
         FROM students
         WHERE roll_number=%s
         """,
-        (roll,)
+        (str(roll),)
     )
 
     s = cur.fetchone()

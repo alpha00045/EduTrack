@@ -207,9 +207,7 @@ def add_student():
 
     if request.method == "POST":
 
-        DATABASE_URL = os.getenv("DATABASE_URL")
-
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_db_connection()
         cur = conn.cursor()
 
         try:
@@ -231,7 +229,10 @@ def add_student():
 
             conn.commit()
 
-            flash("🎉 Student added successfully!", "success")
+            flash(
+                "🎉 Student added successfully!",
+                "success"
+            )
 
             return redirect("/")
 
@@ -239,7 +240,10 @@ def add_student():
 
             conn.rollback()
 
-            flash("❌ Roll Number already exists!", "danger")
+            flash(
+                "❌ Roll Number already exists!",
+                "danger"
+            )
 
             return redirect("/add_student")
 
@@ -302,10 +306,7 @@ def student_details(roll):
 @admin_required
 def edit_student(roll):
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    conn = psycopg2.connect(DATABASE_URL)
-
+    conn = get_db_connection()
     cur = conn.cursor()
 
     if request.method == "POST":
@@ -331,7 +332,10 @@ def edit_student(roll):
 
         conn.commit()
 
-        flash("✅ Student updated successfully!", "success")
+        flash(
+            "✅ Student updated successfully!",
+            "success"
+        )
 
         cur.close()
         conn.close()
@@ -352,63 +356,61 @@ def edit_student(roll):
         (str(roll),)
     )
 
-    s = cur.fetchone()
+    student = cur.fetchone()
 
     cur.close()
     conn.close()
 
-    if not s:
-
+    if not student:
         return "Student Not Found"
 
-    student = {
-
-        "roll": s[0],
-        "name": s[1],
-        "math": s[2],
-        "science": s[3],
-        "english": s[4]
-
+    student_data = {
+        "roll": student[0],
+        "name": student[1],
+        "math": student[2],
+        "science": student[3],
+        "english": student[4]
     }
 
     return render_template(
         "students/edit.html",
-        student=student
+        student=student_data
     )
 
 @app.route("/delete_student/<roll>", methods=["GET", "POST"])
 @admin_required
 def delete_student(roll):
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
 
-    # Fetch student details
+    # Find the student first
     cur.execute("""
-        SELECT roll_number,
-               name,
-               math,
-               science,
-               english
+        SELECT
+            roll_number,
+            name,
+            math,
+            science,
+            english
         FROM students
         WHERE roll_number = %s
     """, (str(roll),))
 
-    s = cur.fetchone()
+    student = cur.fetchone()
 
-    if not s:
+    if not student:
+
         cur.close()
         conn.close()
+
         return "Student Not Found"
 
-    student = {
-        "roll": s[0],
-        "name": s[1],
-        "math": s[2],
-        "science": s[3],
-        "english": s[4]
+    student_data = {
+        "roll": student[0],
+        "name": student[1],
+        "math": student[2],
+        "science": student[3],
+        "english": student[4]
     }
 
     # Delete only after confirmation
@@ -424,7 +426,10 @@ def delete_student(roll):
         cur.close()
         conn.close()
 
-        flash("🗑 Student deleted successfully!", "success")
+        flash(
+            "🗑 Student deleted successfully!",
+            "success"
+        )
 
         return redirect("/")
 
@@ -433,9 +438,8 @@ def delete_student(roll):
 
     return render_template(
         "students/delete.html",
-        student=student
+        student=student_data
     )
-
 @app.route("/export_csv")
 @admin_required
 def export_csv():

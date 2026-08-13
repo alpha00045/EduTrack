@@ -444,10 +444,7 @@ def delete_student(roll):
 @admin_required
 def export_csv():
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    conn = psycopg2.connect(DATABASE_URL)
-
+    conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("""
@@ -463,15 +460,22 @@ def export_csv():
 
     students = cur.fetchall()
 
+    cur.close()
     conn.close()
 
     def generate():
 
         yield "Roll Number,Name,Math,Science,English\n"
 
-        for s in students:
+        for student in students:
 
-            yield f"{s[0]},{s[1]},{s[2]},{s[3]},{s[4]}\n"
+            yield (
+                f"{student[0]},"
+                f"{student[1]},"
+                f"{student[2]},"
+                f"{student[3]},"
+                f"{student[4]}\n"
+            )
 
     return Response(
         generate(),
@@ -486,9 +490,7 @@ def export_csv():
 @admin_required
 def export_excel():
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
-
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("""
@@ -504,6 +506,7 @@ def export_excel():
 
     students = cur.fetchall()
 
+    cur.close()
     conn.close()
 
     workbook = Workbook()
@@ -520,6 +523,7 @@ def export_excel():
         "Grade"
     ])
 
+    # Header styling
     header_fill = PatternFill(
         fill_type="solid",
         fgColor="0D6EFD"
@@ -540,34 +544,16 @@ def export_excel():
         cell.font = header_font
         cell.alignment = center
 
+    # Add students
     for student in students:
-        marks = [
-            m for m in [
-                student[2],
-                student[3],
-                student[4]
-            ]
-            if m is not None
-        ]
 
-        average = round(sum(marks) / len(marks), 2) if marks else 0
+        average = calculate_average([
+            student[2],
+            student[3],
+            student[4]
+        ])
 
-        if average >= 90:
-            grade = "A1"
-        elif average >= 80:
-            grade = "A2"
-        elif average >= 70:
-            grade = "B1"
-        elif average >= 60:
-            grade = "B2"
-        elif average >= 50:
-            grade = "C1"
-        elif average >= 40:
-            grade = "C2"
-        elif average >= 33:
-            grade = "D"
-        else:
-            grade = "F"
+        grade = calculate_grade(average)
 
         sheet.append([
             student[0],
@@ -579,24 +565,36 @@ def export_excel():
             grade
         ])
 
+    # Auto column width
     for column_cells in sheet.columns:
+
         max_length = 0
         column_letter = column_cells[0].column_letter
 
         for cell in column_cells:
+
             if cell.value is not None:
-                max_length = max(max_length, len(str(cell.value)))
+                max_length = max(
+                    max_length,
+                    len(str(cell.value))
+                )
 
-        sheet.column_dimensions[column_letter].width = max_length + 5
+        sheet.column_dimensions[
+            column_letter
+        ].width = max_length + 5
 
+    # Freeze header row
     sheet.freeze_panes = "A2"
 
+    # Enable Excel filter
     sheet.auto_filter.ref = sheet.dimensions
 
+    # Alignment
     left = Alignment(horizontal="left")
     center = Alignment(horizontal="center")
 
     for row in sheet.iter_rows(min_row=2):
+
         row[0].alignment = center
         row[1].alignment = left
         row[2].alignment = center
@@ -605,15 +603,21 @@ def export_excel():
         row[5].alignment = center
         row[6].alignment = center
 
+    # Create Excel file in memory
     excel_file = BytesIO()
+
     workbook.save(excel_file)
+
     excel_file.seek(0)
 
     return send_file(
         excel_file,
         download_name="students.xlsx",
         as_attachment=True,
-        mimetype="application/vnd.openxmlformats-officedocument/spreadsheetml.sheet"
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        )
     )
 
 @app.route("/login", methods=["GET", "POST"])

@@ -55,6 +55,34 @@ def calculate_grade(average):
     else:
         return "F"
         
+def validate_student_form(form, include_roll=True):
+    """Validate untrusted form values before sending them to PostgreSQL."""
+    name = form.get("name", "").strip()
+    if not name or len(name) > 100:
+        return None, "Student name is required and must be 100 characters or fewer."
+
+    data = {"name": name}
+    if include_roll:
+        try:
+            roll = int(form.get("roll", ""))
+            if roll <= 0:
+                raise ValueError
+            data["roll"] = roll
+        except (TypeError, ValueError):
+            return None, "Roll number must be a positive whole number."
+
+    for subject in ("math", "science", "english"):
+        try:
+            mark = int(form.get(subject, ""))
+        except (TypeError, ValueError):
+            return None, f"{subject.title()} marks must be a whole number from 0 to 100."
+        if mark < 0 or mark > 100:
+            return None, f"{subject.title()} marks must be between 0 and 100."
+        data[subject] = mark
+
+    return data, None
+
+
 def admin_required(f):
 
     @wraps(f)
@@ -207,6 +235,11 @@ def add_student():
 
     if request.method == "POST":
 
+        student_form, validation_error = validate_student_form(request.form)
+        if validation_error:
+            flash(validation_error, "danger")
+            return redirect("/add_student")
+
         conn = get_db_connection()
         cur = conn.cursor()
 
@@ -219,11 +252,11 @@ def add_student():
                 VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
-                    request.form["roll"],
-                    request.form["name"],
-                    request.form["math"],
-                    request.form["science"],
-                    request.form["english"]
+                    student_form["roll"],
+                    student_form["name"],
+                    student_form["math"],
+                    student_form["science"],
+                    student_form["english"]
                 )
             )
 
@@ -311,6 +344,13 @@ def edit_student(roll):
 
     if request.method == "POST":
 
+        student_form, validation_error = validate_student_form(request.form, include_roll=False)
+        if validation_error:
+            cur.close()
+            conn.close()
+            flash(validation_error, "danger")
+            return redirect(f"/edit_student/{roll}")
+
         cur.execute(
             """
             UPDATE students
@@ -322,10 +362,10 @@ def edit_student(roll):
             WHERE roll_number=%s
             """,
             (
-                request.form["name"],
-                request.form["math"],
-                request.form["science"],
-                request.form["english"],
+                student_form["name"],
+                student_form["math"],
+                student_form["science"],
+                student_form["english"],
                 roll
             )
         )
@@ -619,6 +659,67 @@ def export_excel():
             "spreadsheetml.sheet"
         )
     )
+
+@app.route("/analytics")
+@admin_required
+def analytics():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT roll_number, name, math, science, english
+            FROM students
+            ORDER BY roll_number
+        """)
+        records = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    students = []
+    subject_totals = {"Math": [], "Science": [], "English": []}
+    grade_counts = {"A1": 0, "A2": 0, "B1": 0, "B2": 0,
+                    "C1": 0, "C2": 0, "D": 0, "F": 0}
+
+    for row in records:
+        marks = row[2:5]
+        average = calculate_average(marks)
+        grade = calculate_grade(average)
+        students.append({
+            "roll": row[0], "name": row[1],
+            "math": row[2], "science": row[3], "english": row[4],
+            "average": average, "grade": grade
+        })
+        grade_counts[grade] += 1
+        for label, mark in zip(subject_totals, marks):
+            if mark is not None:
+                subject_totals[label].append(mark)
+
+    total_students = len(students)
+    overall_average = calculate_average(
+        [s["average"] for s in students]
+    )
+    passed = sum(1 for s in students if s["average"] >= 33)
+    failed = total_students - passed
+    subject_averages = {
+        label: calculate_average(values)
+        for label, values in subject_totals.items()
+    }
+    top_students = sorted(
+        students, key=lambda item: item["average"], reverse=True
+    )[:5]
+
+    return render_template(
+        "analytics/dashboard.html",
+        total_students=total_students,
+        overall_average=overall_average,
+        passed=passed,
+        failed=failed,
+        subject_averages=subject_averages,
+        grade_counts=grade_counts,
+        top_students=top_students
+    )
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():

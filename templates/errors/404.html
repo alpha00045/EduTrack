@@ -1,0 +1,10 @@
+{% extends "layouts/base.html" %}
+{% block title %}Page Not Found | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-5 text-center">
+  <div class="display-1 fw-bold text-primary">404</div>
+  <h1 class="h3 mt-3">Page not found</h1>
+  <p class="text-muted">The page you requested may have moved or does not exist.</p>
+  <a class="btn btn-primary mt-2" href="{{ url_for('index') }}">Back to dashboard</a>
+</main>
+{% endblock %}

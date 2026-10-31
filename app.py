@@ -6,7 +6,8 @@ from flask import (
     flash,
     Response,
     send_file,
-    session
+    session,
+    g
 )
 
 from functools import wraps
@@ -48,8 +49,57 @@ app.secret_key = SECRET_KEY
 csrf = CSRFProtect(app)
 
 def get_db_connection():
+    """Open one request-scoped PostgreSQL connection."""
     DATABASE_URL = os.getenv("DATABASE_URL")
-    return psycopg2.connect(DATABASE_URL)
+    connection = psycopg2.connect(DATABASE_URL)
+    g.db_connection = connection
+    return connection
+
+
+@app.teardown_request
+def close_db_connection(error=None):
+    """Rollback an unfinished transaction and always release the connection."""
+    connection = g.pop("db_connection", None)
+    if connection is None:
+        return
+
+    try:
+        if error is not None and not connection.closed:
+            connection.rollback()
+    except psycopg2.Error:
+        app.logger.exception("Failed to roll back a database transaction")
+    finally:
+        try:
+            if not connection.closed:
+                connection.close()
+        except psycopg2.Error:
+            app.logger.exception("Failed to close a database connection")
+
+
+@app.errorhandler(psycopg2.Error)
+def handle_database_error(error):
+    """Return a safe response for PostgreSQL failures without exposing details."""
+    connection = g.get("db_connection")
+    if connection is not None:
+        try:
+            if not connection.closed:
+                connection.rollback()
+        except psycopg2.Error:
+            app.logger.exception("Database rollback failed after a query error")
+
+    app.logger.exception("A database operation failed")
+    return render_template("errors/503.html"), 503
+
+
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template("errors/404.html"), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    app.logger.error("An unexpected application error occurred")
+    return render_template("errors/500.html"), 500
 
 
 def calculate_average(marks):

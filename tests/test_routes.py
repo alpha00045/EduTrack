@@ -244,6 +244,8 @@ def test_csv_export_requires_admin(client):
 
 
 def test_database_connection_failure_returns_safe_503(client, monkeypatch):
+    login_as_admin(client)
+
     def fail_to_connect(*args, **kwargs):
         raise psycopg2.OperationalError("private database connection details")
 
@@ -257,6 +259,8 @@ def test_database_connection_failure_returns_safe_503(client, monkeypatch):
 
 
 def test_database_query_failure_rolls_back_and_closes_connection(client, monkeypatch):
+    login_as_admin(client)
+
     class FailingCursor(FakeCursor):
         def execute(self, query, params=None):
             raise psycopg2.OperationalError("private query details")
@@ -293,6 +297,7 @@ def test_about_page_renders(client):
 
 
 def test_missing_student_details_returns_404(client, monkeypatch):
+    login_as_admin(client)
     monkeypatch.setattr(
         student_app, "get_db_connection", lambda: FakeConnection(one=None)
     )

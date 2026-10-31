@@ -10,17 +10,20 @@ from flask import (
 )
 
 from functools import wraps
-from io import BytesIO
+from io import BytesIO, StringIO
+import csv
 
 import os
 import psycopg2
+from flask_wtf.csrf import CSRFProtect
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
 
 app = Flask(__name__)
-app.secret_key = "edutrack_secret_key"
+app.secret_key = os.getenv("SECRET_KEY", "development-only-change-me")
+csrf = CSRFProtect(app)
 
 def get_db_connection():
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -483,48 +486,37 @@ def delete_student(roll):
 @app.route("/export_csv")
 @admin_required
 def export_csv():
-
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("""
-        SELECT
-            roll_number,
-            name,
-            math,
-            science,
-            english
-        FROM students
-        ORDER BY roll_number
-    """)
+    try:
+        cur.execute("""
+            SELECT roll_number, name, math, science, english
+            FROM students
+            ORDER BY roll_number
+        """)
+        students = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
 
-    students = cur.fetchall()
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\r\n")
+    writer.writerow(["Roll Number", "Name", "Math", "Science", "English"])
 
-    cur.close()
-    conn.close()
+    for student in students:
+        # Prevent spreadsheet formula execution from untrusted text fields.
+        name = student[1]
+        if isinstance(name, str) and name.startswith(("=", "+", "-", "@")):
+            name = "'" + name
+        writer.writerow([student[0], name, student[2], student[3], student[4]])
 
-    def generate():
-
-        yield "Roll Number,Name,Math,Science,English\n"
-
-        for student in students:
-
-            yield (
-                f"{student[0]},"
-                f"{student[1]},"
-                f"{student[2]},"
-                f"{student[3]},"
-                f"{student[4]}\n"
-            )
-
-    return Response(
-        generate(),
-        mimetype="text/csv",
-        headers={
-            "Content-Disposition":
-            "attachment; filename=students.csv"
-        }
+    response = Response(
+        "\ufeff" + output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=students.csv"}
     )
+    return response
 
 @app.route("/export_excel")
 @admin_required
@@ -740,7 +732,7 @@ def login():
 
     return render_template("auth/login.html")
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
 
     session.pop("admin", None)

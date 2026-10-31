@@ -40,7 +40,7 @@
 
                             <h5>📘 Math</h5>
 
-                            <h2>{{ student.math }}</h2>
+                            <h2>{{ student.math if student.math is not none else '-' }}</h2>
 
                         </div>
 
@@ -56,7 +56,7 @@
 
                             <h5>🧪 Science</h5>
 
-                            <h2>{{ student.science }}</h2>
+                            <h2>{{ student.science if student.science is not none else '-' }}</h2>
 
                         </div>
 
@@ -72,7 +72,7 @@
 
                             <h5>📖 English</h5>
 
-                            <h2>{{ student.english }}</h2>
+                            <h2>{{ student.english if student.english is not none else '-' }}</h2>
 
                         </div>
 

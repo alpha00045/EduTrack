@@ -54,6 +54,9 @@
 
                 </li>
 
+                {% endif %}
+
+                {% if session.get("admin") %}
                 <li class="nav-item dropdown">
 
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -63,7 +66,9 @@
                     </a>
 
                     <ul class="dropdown-menu">
-                        {% if session.get("admin") %}
+                         {% endif %}
+
+               {% if session.get("admin") %}
                         <li>
                             <a class="dropdown-item" href="/export_csv">
 

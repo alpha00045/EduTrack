@@ -170,15 +170,17 @@ class StudentTracker:
 def main():
     tracker = StudentTracker()
     try:
+        show_students = True
         while True:
-            students = tracker.get_all_students()
-
-            if not students:
-                print("\\n>>> NO STUDENTS ENROLLED")
-            else:
-                print("EXISTING STUDENTS:\\n")
-                for student in students:
-                    student.display_info()
+            if show_students:
+                students = tracker.get_all_students()
+                if not students:
+                    print("\\n>>> NO STUDENTS ENROLLED")
+                else:
+                    print("EXISTING STUDENTS:\\n")
+                    for student in students:
+                        student.display_info()
+                show_students = False
 
             print("\\n1. Add Student")
             print("2. Assign Grades")
@@ -201,6 +203,7 @@ def main():
                     print("ERROR: Name and roll number are required.")
                     continue
                 print(tracker.add_student(name, roll))
+                show_students = True
 
             elif choice == 2:
                 roll = input("Enter Roll Number: ").strip()
@@ -214,6 +217,7 @@ def main():
                         print("ERROR: Marks must be between 0 and 100.")
                         continue
                     print(tracker.add_grades(roll, *marks))
+                    show_students = True
                 except ValueError:
                     print("ERROR: Enter whole-number marks from 0 to 100.")
 
@@ -230,6 +234,7 @@ def main():
 
             elif choice == 6:
                 reloading_data_spinner(1)
+                show_students = True
 
             elif choice == 7:
                 saving_data_spinner(1)

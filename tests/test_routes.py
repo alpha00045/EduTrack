@@ -580,7 +580,9 @@ def test_configurable_pass_mark_changes_grade_in_request_context(client):
         assert student_app.calculate_grade(40) == "C2"
 
 
-def test_organization_registration_starts_pending(client):
+def test_organization_registration_starts_pending(client, monkeypatch):
+    connection = FakeConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
     response = client.post(
         "/register-organization",
         data={
@@ -594,11 +596,12 @@ def test_organization_registration_starts_pending(client):
             "password": "a-strong-test-password",
             "confirm_password": "a-strong-test-password",
         },
+        follow_redirects=True,
     )
-    assert response.status_code == 302
+    assert response.status_code == 200
     assert b"Registration submitted successfully" in response.data
-    assert "INSERT INTO organizations" in t.fake_cursor.executed[0][0]
-    assert t.committed is True
+    assert "INSERT INTO organizations" in connection.fake_cursor.executed[0][0]
+    assert connection.committed is True
 
 
 def test_organization_registration_rejects_short_password(client):

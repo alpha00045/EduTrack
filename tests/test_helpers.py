@@ -1,4 +1,11 @@
 import os
+import sys
+from pathlib import Path
+
+# Ensure the repository root (where app.py lives) is importable when pytest
+# is launched from different working directories.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # app.py intentionally requires these settings at import time.
 os.environ.setdefault("SECRET_KEY", "test-only-secret-key")

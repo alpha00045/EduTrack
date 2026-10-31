@@ -484,7 +484,7 @@ def edit_student(roll):
     conn.close()
 
     if not student:
-        return "Student Not Found"
+        abort(404)
 
     student_data = {
         "roll": student[0],
@@ -525,7 +525,7 @@ def delete_student(roll):
         cur.close()
         conn.close()
 
-        return "Student Not Found"
+        abort(404)
 
     student_data = {
         "roll": student[0],

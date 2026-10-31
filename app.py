@@ -22,7 +22,29 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 
 app = Flask(__name__)
-app.secret_key = "edutrack_secret_key"
+
+# Load sensitive configuration from environment variables.
+SECRET_KEY = os.getenv("SECRET_KEY")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
+missing_settings = [
+    name for name, value in {
+        "SECRET_KEY": SECRET_KEY,
+        "ADMIN_USERNAME": ADMIN_USERNAME,
+        "ADMIN_PASSWORD": ADMIN_PASSWORD,
+    }.items()
+    if not value
+]
+
+if missing_settings:
+    raise RuntimeError(
+        "Missing required environment variables: "
+        + ", ".join(missing_settings)
+    )
+
+app.secret_key = SECRET_KEY
+csrf = CSRFProtect(app)
 csrf = CSRFProtect(app)
 
 def get_db_connection():
@@ -723,7 +745,7 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
 
-        if username == "admin" and password == "edutrack123":
+        if hmac.compare_digest(username, ADMIN_USERNAME) and hmac.compare_digest(password, ADMIN_PASSWORD):
             session["admin"] = username
             flash("Login Successful!", "success")
             return redirect("/")

@@ -439,3 +439,64 @@ def test_theme_toggle_is_available_on_public_and_admin_pages(client):
     admin_response = client.get("/")
     assert admin_response.status_code == 200
     assert b"themeToggle" in admin_response.data
+
+
+
+def test_student_directory_uses_database_pagination_and_search(client, monkeypatch):
+    login_as_admin(client)
+
+    class DirectoryCursor:
+        def __init__(self):
+            self.executed = []
+            self.closed = False
+            self.rows = [(301, "Asha Search", 90, 91, 92)]
+
+        def execute(self, query, params=None):
+            self.executed.append((query, params))
+
+        def fetchone(self):
+            return (45,)
+
+        def fetchall(self):
+            return self.rows
+
+        def close(self):
+            self.closed = True
+
+    class DirectoryConnection:
+        def __init__(self):
+            self.cursor_instance = DirectoryCursor()
+            self.closed = False
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def close(self):
+            self.closed = True
+
+    connection = DirectoryConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.get("/view_students?q=Asha&page=2&sort=name")
+
+    assert response.status_code == 200
+    assert b"Asha Search" in response.data
+    assert b"Showing 21" in response.data
+    assert any("ILIKE" in query for query, _ in connection.cursor_instance.executed)
+    assert any("LIMIT %s OFFSET %s" in query for query, _ in connection.cursor_instance.executed)
+    assert connection.cursor_instance.executed[-1][1] == ("%Asha%", "%Asha%", 20, 20)
+    assert connection.cursor_instance.closed is True
+    assert connection.closed is True
+
+
+def test_student_directory_invalid_page_falls_back_to_first_page(client, monkeypatch):
+    login_as_admin(client)
+    connection = FakeConnection(rows=ROWS)
+    # The fake COUNT(*) response is adjusted to the two seeded records.
+    connection.fake_cursor.one = (2,)
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.get("/view_students?page=not-a-number")
+
+    assert response.status_code == 200
+    assert b"Showing 1â2 of 2 students" in response.data

@@ -3,7 +3,7 @@
 -- The application never runs schema changes automatically.
 
 CREATE TABLE IF NOT EXISTS attendance (
-    student_roll INTEGER NOT NULL REFERENCES students (roll_number) ON DELETE CASCADE,
+    student_roll TEXT NOT NULL REFERENCES students (roll_number) ON DELETE CASCADE,
     attendance_date DATE NOT NULL,
     status VARCHAR(10) NOT NULL CHECK (status IN ('present', 'absent', 'late')),
     marked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -13,7 +13,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance (attendance_date);
 CREATE INDEX IF NOT EXISTS idx_attendance_status_date ON attendance (status, attendance_date);
 
 CREATE TABLE IF NOT EXISTS student_profiles (
-    student_roll INTEGER PRIMARY KEY REFERENCES students (roll_number) ON DELETE CASCADE,
+    student_roll TEXT PRIMARY KEY REFERENCES students (roll_number) ON DELETE CASCADE,
     email VARCHAR(254),
     phone VARCHAR(30),
     guardian_name VARCHAR(100),
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS student_profiles (
 
 CREATE TABLE IF NOT EXISTS student_assessments (
     id BIGSERIAL PRIMARY KEY,
-    student_roll INTEGER NOT NULL REFERENCES students (roll_number) ON DELETE CASCADE,
+    student_roll TEXT NOT NULL REFERENCES students (roll_number) ON DELETE CASCADE,
     academic_year VARCHAR(20) NOT NULL,
     term VARCHAR(40) NOT NULL,
     subject VARCHAR(50) NOT NULL,

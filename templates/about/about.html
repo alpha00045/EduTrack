@@ -1,0 +1,38 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}About EduTrack{% endblock %}
+
+{% block content %}
+<main class="container py-5">
+    <section class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <div class="display-4 mb-2">🎓</div>
+                        <h1 class="fw-bold">About EduTrack</h1>
+                        <p class="lead text-muted">A simple, secure way to manage student records and academic performance.</p>
+                    </div>
+                    <h2 class="h5 fw-semibold">What EduTrack does</h2>
+                    <p>EduTrack is a student management application built with Python, Flask and PostgreSQL. It helps administrators maintain student records, review marks, calculate averages and grades, and understand class performance.</p>
+                    <h2 class="h5 fw-semibold mt-4">Main features</h2>
+                    <ul>
+                        <li>Student record creation, viewing, editing and deletion</li>
+                        <li>Search and sorting on the student list</li>
+                        <li>Automatic averages and grade calculation</li>
+                        <li>Academic analytics and performance charts</li>
+                        <li>CSV and Excel report exports</li>
+                        <li>Admin authentication and protected management actions</li>
+                    </ul>
+                    <h2 class="h5 fw-semibold mt-4">Technology</h2>
+                    <p class="mb-0">Python · Flask · PostgreSQL · Bootstrap · JavaScript · Chart.js</p>
+                    <div class="text-center mt-4">
+                        <a class="btn btn-primary" href="{{ url_for('index') }}">Return to dashboard</a>
+                        <a class="btn btn-outline-primary ms-2" href="https://github.com/alpha00045/EduTrack" target="_blank" rel="noopener noreferrer">View source code</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+{% endblock %}

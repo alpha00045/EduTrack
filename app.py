@@ -1871,33 +1871,34 @@ def organization_add_student():
 @app.route("/organization/students/<path:roll>")
 @organization_required
 def organization_student_details(roll):
+    oid = session["organization_id"]
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute(
-            """SELECT roll_number, name, math, science, english, created_at
-               FROM organization_students
-               WHERE organization_id=%s AND roll_number=%s""",
-            (session["organization_id"], roll),
-        )
-        student = cur.fetchone()
+        cur.execute("""SELECT s.id,s.roll_number,s.name,s.math,s.science,s.english,s.created_at,
+            p.date_of_birth,p.gender,p.email,p.phone,p.guardian_name,p.guardian_phone,p.address,
+            p.admission_number,p.joining_date,p.admission_standard,p.notes,p.photo_mime
+            FROM organization_students s LEFT JOIN organization_student_profiles p
+            ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE s.organization_id=%s AND s.roll_number=%s""", (oid, roll))
+        r = cur.fetchone()
+        if not r:
+            abort(404)
+        cur.execute("""SELECT academic_year,standard,term,subject,marks_obtained,maximum_marks,recorded_at
+            FROM organization_student_assessments WHERE organization_id=%s AND student_id=%s
+            ORDER BY academic_year DESC,recorded_at DESC""", (oid, r[0]))
+        history = cur.fetchall()
     finally:
         cur.close()
         conn.close()
-    if not student:
-        abort(404)
-    average = calculate_average(student[2:5])
-    return render_template(
-        "organizations/student_details.html",
-        student={
-            "roll": student[0], "name": student[1],
-            "math": student[2], "science": student[3],
-            "english": student[4], "average": average,
-            "joined": student[5],
-        },
-    )
-
-
+    student = dict(zip(("id","roll","name","math","science","english","created","date_of_birth",
+        "gender","email","phone","guardian_name","guardian_phone","address","admission_number",
+        "joining_date","admission_standard","notes","photo_mime"), r))
+    student["average"] = calculate_average(r[3:6])
+    assessments = [{"academic_year":x[0],"standard":x[1],"term":x[2],"subject":x[3],
+        "marks":x[4],"maximum":x[5],"percentage":round(float(x[4])/float(x[5])*100,2),
+        "recorded_at":x[6]} for x in history]
+    return render_template("organizations/student_details.html", student=student, assessments=assessments)
 
 
 # ---------------------------------------------------------------------------

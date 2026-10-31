@@ -2,3 +2,4 @@ Flask==3.0.3
 gunicorn==22.0.0
 psycopg2-binary
 openpyxl
+Flask-WTF==1.2.2

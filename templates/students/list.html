@@ -1,213 +1,109 @@
 {% extends "layouts/base.html" %}
-
-{% block title %}
-EduTrack
-{% endblock %}
-
+{% block title %}Dashboard | EduTrack{% endblock %}
 {% block content %}
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-    {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mt-3 mb-4">
+<main class="container-fluid px-3 px-lg-4 py-4 py-lg-5 dashboard-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
             {{ message }}
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="alert">
-            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-    {% endfor %}
-{% endif %}
-{% endwith %}
+      {% endfor %}
+    {% endwith %}
 
-<div class="container mt-5">
+    <section class="dashboard-welcome mb-4 mb-lg-5">
+        <div>
+            <p class="eyebrow mb-2"><i class="bi bi-stars me-1"></i> YOUR ACADEMIC OVERVIEW</p>
+            <h1 class="welcome-title mb-2">Welcome back, {{ session.get("admin", "Admin") }}!</h1>
+            <p class="welcome-copy mb-0">Here’s what’s happening with your students today.</p>
+            <p class="welcome-date mb-0 mt-2"><i class="bi bi-calendar3 me-2"></i><span id="dashboardDate">Your dashboard</span></p>
+        </div>
+        <a href="{{ url_for('add_student') }}" class="btn btn-light btn-lg quick-add">
+            <i class="bi bi-person-plus-fill me-2"></i>Add student
+        </a>
+    </section>
 
-    <div class="text-center">
+    <section aria-label="Class overview" class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="section-heading mb-1">Class overview</h2>
+                <p class="section-subtitle mb-0">A quick snapshot of your classroom.</p>
+            </div>
+            <span class="live-pill"><span class="live-dot"></span> Live summary</span>
+        </div>
+        <div class="row g-3">
+            <div class="col-6 col-xl-3">
+                <article class="metric-card metric-blue h-100">
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-people-fill"></i></span><span class="metric-label">ENROLMENT</span></div>
+                    <p class="metric-value">{{ total_students }}</p><p class="metric-caption mb-0">Total students</p>
+                </article>
+            </div>
+            <div class="col-6 col-xl-3">
+                <article class="metric-card metric-violet h-100">
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="metric-label">CLASS SCORE</span></div>
+                    <p class="metric-value">{{ class_average }}<small>%</small></p><p class="metric-caption mb-0">Class average</p>
+                </article>
+            </div>
+            <div class="col-6 col-xl-3">
+                <article class="metric-card metric-amber h-100">
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-trophy-fill"></i></span><span class="metric-label">TOP SCORE</span></div>
+                    <p class="metric-value">{{ highest }}<small>%</small></p><p class="metric-caption mb-0">Highest average</p>
+                </article>
+            </div>
+            <div class="col-6 col-xl-3">
+                <article class="metric-card metric-green h-100">
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-journal-bookmark-fill"></i></span><span class="metric-label">CURRICULUM</span></div>
+                    <p class="metric-value">{{ subjects }}</p><p class="metric-caption mb-0">Subjects tracked</p>
+                </article>
+            </div>
+        </div>
+    </section>
 
-        <h1 class="display-4 fw-bold">
-
-            Student Performance Tracker
-
-        </h1>
-
-        <p class="lead text-muted">
-
-            Monitor, Analyze and Manage Student Performance Efficiently
-
-        </p>
-
-    </div>
-
-</div>
-<div class="container mt-5">
-
-    <div class="row g-4">
-
-        <div class="col-md-3">
-
-            <div class="card text-center shadow border-0">
-
-                <div class="card-body">
-
-                    <h1>👨‍🎓</h1>
-
-                    <h5>Total Students</h5>
-
-                    <h2>{{ total_students }}</h2>
-
+    <section class="row g-4">
+        <div class="col-xl-8">
+            <div class="surface-card h-100">
+                <div class="surface-heading">
+                    <div><h2 class="section-heading mb-1">Top performers</h2><p class="section-subtitle mb-0">Students leading the class by average score.</p></div>
+                    <a href="{{ url_for('view_students') }}" class="text-link">View all <i class="bi bi-arrow-right ms-1"></i></a>
                 </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-3">
-
-            <div class="card text-center shadow border-0">
-
-                <div class="card-body">
-
-                    <h1>📈</h1>
-
-                    <h5>Class Average</h5>
-
-                    <h2>{{ class_average }}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-3">
-
-            <div class="card text-center shadow border-0">
-
-                <div class="card-body">
-
-                    <h1>🏆</h1>
-
-                    <h5>Highest Average</h5>
-
-                    <h2>{{ highest }}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-3">
-
-            <div class="card text-center shadow border-0">
-
-                <div class="card-body">
-
-                    <h1>📚</h1>
-
-                    <h5>Subjects</h5>
-
-                    <h2>{{ subjects }}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- Student Table -->
-
-<div class="container mt-5">
-
-    <div class="card shadow border-0">
-
-        <div class="card-header bg-primary text-white">
-
-            <div class="d-flex justify-content-between align-items-center">
-
-                <h4 class="mb-0">
-                    🏆 Top 10 Students
-                </h4>
-
-            </div>
-
-        </div>
-
-        <div class="card-body">
-
-            <div class="table-responsive">
-
-                <table id="studentTable" class="table table-hover table-bordered align-middle">
-
-                    <thead class="table-dark">
-
-                        <tr>
-
-                            <th>Rank</th>
-                            <th>Roll No.</th>
-                            <th>Name</th>
-                            <th>Average</th>
-                            
-                        </tr>
-
-                    </thead>
-
-                    <tbody>
-
+                {% if students %}
+                <div class="table-responsive">
+                    <table class="table align-middle dashboard-table mb-0">
+                        <thead><tr><th scope="col">RANK</th><th scope="col">STUDENT</th><th scope="col">ROLL NO.</th><th scope="col">AVERAGE</th></tr></thead>
+                        <tbody>
                         {% for s in students %}
-                        {% set rank = loop.index %}
-
                         <tr>
-                            <td>
-
-                                {% if rank == 1 %}
-
-                                🥇
-
-                                {% elif rank == 2 %}
-
-                                🥈
-
-                                {% elif rank == 3 %}
-
-                                🥉
-
-                                {% else %}
-
-                                {{ rank }}
-
-                                {% endif %}
-
-                            </td>
-                            <td>{{ s.roll }}</td>
-
-                            <td>
-                            <a href="/student/{{ s.roll }}"
-                               class="text-decoration-none fw-semibold">
-                                {{ s.name }}   
-                            </a>
-                            </td>
-                            
-                            <td>{{ s.average }}</td>
-                            
+                            <td><span class="rank-chip {% if loop.index <= 3 %}rank-top{% endif %}">{{ "%02d"|format(loop.index) }}</span></td>
+                            <td><a class="student-name" href="{{ url_for('student_details', roll=s.roll) }}">{{ s.name }}</a><div class="student-meta">{{ s.grade }} grade</div></td>
+                            <td class="muted-cell">{{ s.roll }}</td>
+                            <td><div class="score-cell"><strong>{{ s.average }}%</strong><div class="mini-progress"><span style="width: {{ [s.average, 100]|min }}%"></span></div></div></td>
                         </tr>
-
                         {% endfor %}
-
-                    </tbody>
-
-                </table>
-
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <span class="empty-icon"><i class="bi bi-mortarboard"></i></span>
+                    <h3>No student records yet</h3>
+                    <p>Add your first student to start tracking class performance.</p>
+                    <a href="{{ url_for('add_student') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-2"></i>Add first student</a>
+                </div>
+                {% endif %}
             </div>
-
         </div>
-
-    </div>
-
-</div>
-
+        <div class="col-xl-4">
+            <div class="surface-card h-100">
+                <div class="surface-heading"><div><h2 class="section-heading mb-1">Quick actions</h2><p class="section-subtitle mb-0">Your everyday tools, all in one place.</p></div></div>
+                <div class="quick-action-list">
+                    <a href="{{ url_for('add_student') }}" class="quick-action"><span class="action-icon action-blue"><i class="bi bi-person-plus"></i></span><span><strong>Add a student</strong><small>Create a new student record</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
+                    <a href="{{ url_for('view_students') }}" class="quick-action"><span class="action-icon action-purple"><i class="bi bi-people"></i></span><span><strong>Manage students</strong><small>Search, sort and update records</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
+                    <a href="{{ url_for('analytics') }}" class="quick-action"><span class="action-icon action-green"><i class="bi bi-bar-chart-line"></i></span><span><strong>View analytics</strong><small>Explore class performance</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
+                    <a href="{{ url_for('export_excel') }}" class="quick-action"><span class="action-icon action-amber"><i class="bi bi-file-earmark-spreadsheet"></i></span><span><strong>Export report</strong><small>Download an Excel report</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
+                </div>
+                <div class="dashboard-tip mt-3"><i class="bi bi-lightbulb-fill me-2"></i><span><strong>Tip:</strong> Keep student records updated to make your reports more useful.</span></div>
+            </div>
+        </div>
+    </section>
+</main>
 {% endblock %}

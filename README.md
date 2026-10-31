@@ -159,3 +159,10 @@ EduTrack now includes an organization application workflow:
 Review and manually apply `migrations/003_organization_registration.sql` to the configured PostgreSQL/Supabase database. The application does not execute schema migrations automatically.
 
 **Important phase boundary:** this phase implements registration and verification records only. Organization sign-in and tenant-isolated student management must be completed before approved organizations are allowed to access student data. Do not merge this phase into production as a complete multi-tenant release until that follow-up work is finished and tested.
+
+
+## Organization portal (Phase 2)
+
+Approved organizations can sign in at `/organization/login`. Pending, rejected, or suspended applications are not allowed into the organization portal. The portal provides an organization dashboard and student list, add-student, and student-detail pages. Tenant student data is stored in dedicated organization tables, separate from the original single-admin `students` table. Every organization student query is filtered by the authenticated organization ID.
+
+Review and manually apply `migrations/004_organization_tenant_data.sql` after migration 003. The migration also creates organization-specific profile, assessment-history and attendance tables for subsequent feature work. Do not run migrations against production until you have taken a backup and reviewed the SQL.

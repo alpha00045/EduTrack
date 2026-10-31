@@ -24,7 +24,7 @@ import zipfile
 import os
 import re
 import psycopg2
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf.csrf import CSRFProtect
 
 from openpyxl import Workbook, load_workbook
@@ -1687,6 +1687,214 @@ def reject_organization(organization_id):
         cur.close()
         conn.close()
     return redirect(url_for("organization_requests"))
+
+
+
+
+# ---------------------------------------------------------------------------
+# Organization sign-in and tenant-isolated student management (Phase 2)
+# ---------------------------------------------------------------------------
+
+def organization_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("organization_id"):
+            flash("Please sign in with your approved organization account.", "warning")
+            return redirect(url_for("organization_login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route("/organization/login", methods=["GET", "POST"])
+def organization_login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT id, organization_name, password_hash, status, rejection_reason
+                   FROM organizations WHERE LOWER(email)=%s""",
+                (email,),
+            )
+            organization = cur.fetchone()
+        finally:
+            cur.close()
+            conn.close()
+
+        if not organization or not check_password_hash(organization[2], password):
+            flash("Invalid organization email or password.", "danger")
+        elif organization[3] == "pending":
+            flash("Your organization application is still awaiting verification.", "warning")
+        elif organization[3] == "rejected":
+            flash(
+                "Your organization application was not approved. "
+                + (organization[4] or "Please contact EduTrack support."),
+                "danger",
+            )
+        elif organization[3] != "approved":
+            flash("This organization account is currently not active. Contact EduTrack support.", "danger")
+        else:
+            session.clear()
+            session["organization_id"] = organization[0]
+            session["organization_name"] = organization[1]
+            flash("Organization login successful.", "success")
+            return redirect(url_for("organization_dashboard"))
+
+    return render_template("organizations/login.html")
+
+
+@app.route("/organization/logout", methods=["POST"])
+@organization_required
+def organization_logout():
+    session.pop("organization_id", None)
+    session.pop("organization_name", None)
+    flash("You have been signed out.", "success")
+    return redirect(url_for("organization_login"))
+
+
+@app.route("/organization")
+@organization_required
+def organization_dashboard():
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT COUNT(*),
+                      COALESCE(ROUND(AVG((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0),2),0),
+                      COALESCE(MAX((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0),0)
+               FROM organization_students WHERE organization_id=%s""",
+            (organization_id,),
+        )
+        summary = cur.fetchone()
+        cur.execute(
+            """SELECT roll_number, name, math, science, english
+               FROM organization_students WHERE organization_id=%s
+               ORDER BY created_at DESC, roll_number LIMIT 8""",
+            (organization_id,),
+        )
+        students = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    recent = []
+    for student in students:
+        average = calculate_average(student[2:5])
+        recent.append({
+            "roll": student[0], "name": student[1],
+            "math": student[2], "science": student[3],
+            "english": student[4], "average": average,
+        })
+    return render_template(
+        "organizations/dashboard.html",
+        organization_name=session.get("organization_name", "Organization"),
+        total_students=summary[0] or 0,
+        average=summary[1] or 0,
+        highest=summary[2] or 0,
+        students=recent,
+    )
+
+
+@app.route("/organization/students")
+@organization_required
+def organization_students():
+    organization_id = session["organization_id"]
+    search = request.args.get("q", "").strip()[:100]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if search:
+            pattern = f"%{search}%"
+            cur.execute(
+                """SELECT roll_number, name, math, science, english
+                   FROM organization_students
+                   WHERE organization_id=%s
+                     AND (roll_number ILIKE %s OR name ILIKE %s)
+                   ORDER BY roll_number LIMIT 200""",
+                (organization_id, pattern, pattern),
+            )
+        else:
+            cur.execute(
+                """SELECT roll_number, name, math, science, english
+                   FROM organization_students
+                   WHERE organization_id=%s ORDER BY roll_number LIMIT 200""",
+                (organization_id,),
+            )
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    students = [{
+        "roll": row[0], "name": row[1],
+        "math": row[2], "science": row[3], "english": row[4],
+        "average": calculate_average(row[2:5]),
+    } for row in rows]
+    return render_template("organizations/students.html", students=students, search=search)
+
+
+@app.route("/organization/students/add", methods=["GET", "POST"])
+@organization_required
+def organization_add_student():
+    if request.method == "POST":
+        form, error = validate_student_form(request.form)
+        if error:
+            flash(error, "danger")
+            return render_template("organizations/add_student.html"), 400
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """INSERT INTO organization_students
+                   (organization_id, roll_number, name, math, science, english)
+                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                (
+                    session["organization_id"], str(form["roll"]), form["name"],
+                    form["math"], form["science"], form["english"],
+                ),
+            )
+            conn.commit()
+            flash("Student added successfully.", "success")
+            return redirect(url_for("organization_students"))
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            flash("This roll number is already used in your organization.", "danger")
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("organizations/add_student.html")
+
+
+@app.route("/organization/students/<path:roll>")
+@organization_required
+def organization_student_details(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT roll_number, name, math, science, english, created_at
+               FROM organization_students
+               WHERE organization_id=%s AND roll_number=%s""",
+            (session["organization_id"], roll),
+        )
+        student = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not student:
+        abort(404)
+    average = calculate_average(student[2:5])
+    return render_template(
+        "organizations/student_details.html",
+        student={
+            "roll": student[0], "name": student[1],
+            "math": student[2], "science": student[3],
+            "english": student[4], "average": average,
+            "joined": student[5],
+        },
+    )
 
 
 if __name__ == "__main__":

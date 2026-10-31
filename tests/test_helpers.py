@@ -14,7 +14,7 @@ os.environ.setdefault("ADMIN_PASSWORD", "test-password")
 
 from werkzeug.datastructures import MultiDict
 
-from app import calculate_average, calculate_grade, validate_student_form
+from app import calculate_average, calculate_grade, safe_spreadsheet_text, validate_student_form
 
 
 def valid_form(**overrides):
@@ -109,3 +109,14 @@ def test_calculate_grade_uses_expected_boundaries():
     assert calculate_grade(40) == "C2"
     assert calculate_grade(33) == "D"
     assert calculate_grade(32) == "F"
+
+
+
+def test_safe_spreadsheet_text_neutralizes_formula_prefixes():
+    for value in ("=1+1", " +1+1", "\t=1+1", "\ufeff@SUM(A1:A2)", "-1+1"):
+        assert safe_spreadsheet_text(value) == "'" + value
+
+
+def test_safe_spreadsheet_text_preserves_ordinary_text_and_numbers():
+    assert safe_spreadsheet_text("Asha Das") == "Asha Das"
+    assert safe_spreadsheet_text(101) == 101

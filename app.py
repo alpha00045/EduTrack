@@ -137,6 +137,15 @@ def calculate_grade(average):
     else:
         return "F"
         
+def safe_spreadsheet_text(value):
+    """Prevent untrusted text from being interpreted as a spreadsheet formula."""
+    if isinstance(value, str):
+        formula_candidate = value.lstrip().lstrip("\ufeff").lstrip()
+        if formula_candidate.startswith(("=", "+", "-", "@")):
+            return "'" + value
+    return value
+
+
 def validate_student_form(form, include_roll=True):
     """Validate untrusted form values before sending them to PostgreSQL."""
     name = form.get("name", "").strip()
@@ -597,9 +606,7 @@ def export_csv():
 
     for student in students:
         # Prevent spreadsheet formula execution from untrusted text fields.
-        name = student[1]
-        if isinstance(name, str) and name.startswith(("=", "+", "-", "@")):
-            name = "'" + name
+        name = safe_spreadsheet_text(student[1])
         writer.writerow([student[0], name, student[2], student[3], student[4]])
 
     response = Response(
@@ -680,7 +687,7 @@ def export_excel():
 
         sheet.append([
             student[0],
-            student[1],
+            safe_spreadsheet_text(student[1]),
             student[2],
             student[3],
             student[4],

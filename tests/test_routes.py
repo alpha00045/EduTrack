@@ -500,3 +500,81 @@ def test_student_directory_invalid_page_falls_back_to_first_page(client, monkeyp
 
     assert response.status_code == 200
     assert "Showing 1–2 of 2 students".encode("utf-8") in response.data
+
+
+class UploadFixture:
+    def __init__(self, filename, content):
+        self.filename = filename
+        self.stream = io.BytesIO(content)
+
+    def read(self, size=-1):
+        return self.stream.read(size)
+
+
+def test_student_import_parser_accepts_valid_csv():
+    upload = UploadFixture(
+        "class.csv",
+        b"roll_number,name,math,science,english\n301,Asha Search,90,91,92\n",
+    )
+    records, error = student_app._read_uploaded_student_file(upload)
+    assert error is None
+    assert records == [{
+        "roll": 301, "name": "Asha Search",
+        "math": 90, "science": 91, "english": 92,
+    }]
+
+
+def test_student_import_parser_rejects_duplicate_roll_numbers():
+    upload = UploadFixture(
+        "class.csv",
+        b"roll_number,name,math,science,english\n301,Asha,90,91,92\n301,Ravi,80,81,82\n",
+    )
+    records, error = student_app._read_uploaded_student_file(upload)
+    assert records is None
+    assert "duplicate roll numbers" in error.lower()
+
+
+def test_student_import_parser_rejects_invalid_marks_without_partial_rows():
+    upload = UploadFixture(
+        "class.csv",
+        b"roll_number,name,math,science,english\n301,Asha,90,91,92\n302,Ravi,120,81,82\n",
+    )
+    records, error = student_app._read_uploaded_student_file(upload)
+    assert records is None
+    assert "Row 3" in error
+    assert "between 0 and 100" in error
+
+
+@pytest.mark.parametrize("path", [
+    "/import_students", "/attendance", "/settings", "/backup",
+    "/restore", "/student/101/profile", "/student/101/photo",
+])
+def test_new_management_features_require_admin(client, path):
+    response = client.get(path)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_admin_can_open_student_import_page(client):
+    login_as_admin(client)
+    response = client.get("/import_students")
+    assert response.status_code == 200
+    assert b"Required columns" in response.data
+
+
+def test_admin_navigation_includes_management_tools(client):
+    login_as_admin(client)
+    response = client.get("/")
+    assert response.status_code == 200
+    for label in (b"Bulk Import", b"Attendance", b"Settings", b"Download Backup", b"Restore Backup"):
+        assert label in response.data
+
+
+def test_configurable_pass_mark_changes_grade_in_request_context(client):
+    with client.session_transaction() as session:
+        session["pass_mark"] = 40
+    with student_app.app.test_request_context("/"):
+        from flask import session as request_session
+        request_session["pass_mark"] = 40
+        assert student_app.calculate_grade(39) == "F"
+        assert student_app.calculate_grade(40) == "C2"

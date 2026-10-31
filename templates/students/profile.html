@@ -1,0 +1,33 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ student[1] }} | Student Profile{% endblock %}
+{% block content %}
+<main class="container py-4 feature-page">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center mb-4"><div><p class="eyebrow text-primary mb-1">STUDENT RECORD</p><h1 class="h3 fw-bold mb-1">Extended profile</h1><p class="text-muted mb-0">{{ student[1] }} · Roll {{ student[0] }}</p></div><a href="{{ url_for('student_details', roll=student[0]) }}" class="btn btn-outline-secondary">Back to result</a></div>
+  <div class="row g-4"><div class="col-lg-7"><section class="surface-card p-4">
+    <div class="d-flex align-items-center gap-3 mb-4"><div class="profile-avatar">{% if profile and profile.has_photo %}<img src="{{ url_for('student_photo', roll=student[0]) }}" alt="Photo of {{ student[1] }}">{% else %}<i class="bi bi-person-fill"></i>{% endif %}</div><div><h2 class="section-heading mb-1">{{ student[1] }}</h2><p class="section-subtitle mb-0">Personal and guardian information</p></div></div>
+    <form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="email">Email</label><input class="form-control" id="email" type="email" name="email" maxlength="254" value="{{ profile.email if profile else '' }}"></div>
+        <div class="col-md-6"><label class="form-label" for="phone">Phone</label><input class="form-control" id="phone" name="phone" maxlength="30" value="{{ profile.phone if profile else '' }}"></div>
+        <div class="col-md-6"><label class="form-label" for="guardian">Parent / guardian</label><input class="form-control" id="guardian" name="guardian_name" maxlength="100" value="{{ profile.guardian_name if profile else '' }}"></div>
+        <div class="col-md-6"><label class="form-label" for="dob">Date of birth</label><input class="form-control" id="dob" type="date" name="date_of_birth" value="{{ profile.date_of_birth.isoformat() if profile and profile.date_of_birth else '' }}"></div>
+        <div class="col-12"><label class="form-label" for="address">Address</label><textarea class="form-control" id="address" name="address" rows="2" maxlength="500">{{ profile.address if profile else '' }}</textarea></div>
+        <div class="col-12"><label class="form-label" for="notes">Notes</label><textarea class="form-control" id="notes" name="notes" rows="3" maxlength="2000">{{ profile.notes if profile else '' }}</textarea></div>
+        <div class="col-12"><label class="form-label" for="photo">Profile photo (JPG, PNG or WebP, max 1 MB)</label><input class="form-control" id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp"></div>
+      </div><button class="btn btn-primary mt-4">Save profile</button>
+    </form>
+  </section></div>
+  <div class="col-lg-5"><section class="surface-card p-4 mb-4"><h2 class="section-heading">Academic history</h2><p class="section-subtitle">Record assessments by year, term and subject.</p>
+    <form method="POST" class="row g-2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="assessment">
+      <div class="col-6"><label class="form-label small" for="year">Academic year</label><input class="form-control" id="year" name="academic_year" maxlength="20" placeholder="2026-27" required></div>
+      <div class="col-6"><label class="form-label small" for="term">Term</label><input class="form-control" id="term" name="term" maxlength="40" placeholder="Semester 1" required></div>
+      <div class="col-7"><label class="form-label small" for="subject">Subject</label><input class="form-control" id="subject" name="subject" maxlength="50" required></div>
+      <div class="col-5"><label class="form-label small" for="marks">Marks / 100</label><input class="form-control" id="marks" name="marks" type="number" min="0" max="100" step="0.01" required></div>
+      <div class="col-12"><button class="btn btn-outline-primary w-100">Save assessment</button></div>
+    </form></section>
+    <section class="surface-card p-4"><h2 class="section-heading">Previous assessments</h2><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Year / term</th><th>Subject</th><th>Marks</th></tr></thead><tbody>
+    {% for item in history %}<tr><td>{{ item[0] }}<div class="small text-muted">{{ item[1] }}</div></td><td>{{ item[2] }}</td><td class="fw-semibold">{{ item[3] }}%</td></tr>{% else %}<tr><td colspan="3" class="text-muted py-3">No assessment history recorded yet.</td></tr>{% endfor %}
+    </tbody></table></div></section>
+  </div></div>
+</main>
+{% endblock %}

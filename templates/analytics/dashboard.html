@@ -113,6 +113,25 @@ document.addEventListener("DOMContentLoaded", function () {
         }]},
         options: { responsive: true, maintainAspectRatio: false }
     });
+    new Chart(document.getElementById("performanceChart"), {
+        type: "bar",
+        data: {
+            labels: {{ performance_bands.keys()|list|tojson }},
+            datasets: [{ label: "Students", data: {{ performance_bands.values()|list|tojson }}, borderRadius: 7 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+    const trendCanvas = document.getElementById("trendChart");
+    if (trendCanvas) {
+        new Chart(trendCanvas, {
+            type: "line",
+            data: {
+                labels: {{ assessment_trends|map(attribute=0)|list|tojson }},
+                datasets: [{ label: "Average assessment mark", data: {{ assessment_trends|map(attribute=1)|list|tojson }}, tension: .3, fill: false }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
+        });
+    }
 });
 </script>
 {% endblock %}

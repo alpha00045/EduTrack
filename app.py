@@ -15,6 +15,7 @@ from functools import wraps
 from io import BytesIO, StringIO
 import csv
 import hmac
+from datetime import date
 
 import os
 import psycopg2
@@ -830,6 +831,82 @@ def download_student_result(roll):
         download_name=f"student-{student[0]}-result.pdf",
         mimetype="application/pdf",
     )
+
+
+@app.route("/attendance", methods=["GET", "POST"])
+@admin_required
+def attendance():
+    selected_date = request.values.get("attendance_date", date.today().isoformat())
+    try:
+        selected_date = date.fromisoformat(selected_date).isoformat()
+    except (TypeError, ValueError):
+        flash("Please select a valid attendance date.", "danger")
+        return redirect(url_for("attendance"))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            cur.execute("SELECT roll_number FROM students ORDER BY roll_number")
+            rolls = [row[0] for row in cur.fetchall()]
+            updates = []
+            for roll in rolls:
+                status = request.form.get(f"status_{roll}", "")
+                if status == "":
+                    continue
+                if status not in {"present", "absent", "late"}:
+                    flash("Invalid attendance status. No changes were saved.", "danger")
+                    return redirect(url_for("attendance", attendance_date=selected_date))
+                updates.append((roll, selected_date, status))
+
+            for roll, attendance_date, status in updates:
+                cur.execute(
+                    """
+                    INSERT INTO attendance (student_roll, attendance_date, status)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (student_roll, attendance_date)
+                    DO UPDATE SET status = EXCLUDED.status, marked_at = CURRENT_TIMESTAMP
+                    """,
+                    (roll, attendance_date, status),
+                )
+            conn.commit()
+            flash(f"Attendance saved for {selected_date}.", "success")
+            return redirect(url_for("attendance", attendance_date=selected_date))
+
+        cur.execute(
+            """
+            SELECT s.roll_number, s.name, a.status
+            FROM students AS s
+            LEFT JOIN attendance AS a
+                ON a.student_roll = s.roll_number
+                AND a.attendance_date = %s
+            ORDER BY s.roll_number
+            """,
+            (selected_date,),
+        )
+        rows = cur.fetchall()
+        students = [
+            {"roll": row[0], "name": row[1], "status": row[2]}
+            for row in rows
+        ]
+        total = len(students)
+        present = sum(student["status"] == "present" for student in students)
+        absent = sum(student["status"] == "absent" for student in students)
+        late = sum(student["status"] == "late" for student in students)
+        unmarked = total - present - absent - late
+        return render_template(
+            "attendance/index.html",
+            students=students,
+            attendance_date=selected_date,
+            total=total,
+            present=present,
+            absent=absent,
+            late=late,
+            unmarked=unmarked,
+        )
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.route("/analytics")

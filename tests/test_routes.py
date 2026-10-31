@@ -735,7 +735,7 @@ def test_organization_student_details_query_is_scoped_to_tenant(client, monkeypa
     with client.session_transaction() as session:
         session["organization_id"] = 23
     row = ("501", "Tenant Student", 91, 92, 93, None)
-    connection = FakeConnection(one=row)
+    connection = FakeConnection(rows=[], one=row)
     monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
     response = client.get("/organization/students/501")
     assert response.status_code == 200

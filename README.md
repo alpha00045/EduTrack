@@ -143,3 +143,19 @@ EduTrack is actively being improved. Features and test coverage may change as th
 
 **Sagar Nayak**  
 GitHub: https://github.com/alpha00045
+
+
+## Organization registration (Phase 1)
+
+EduTrack now includes an organization application workflow:
+
+1. Schools, colleges, universities and institutes can submit an application from **Register your organization** on the login page.
+2. The application stores institution details and a securely hashed password with status `pending`.
+3. The platform administrator reviews applications from **Organizations** in the admin navigation.
+4. The administrator can approve or reject pending applications. Review actions are authenticated and protected by CSRF.
+
+### Database migration
+
+Review and manually apply `migrations/003_organization_registration.sql` to the configured PostgreSQL/Supabase database. The application does not execute schema migrations automatically.
+
+**Important phase boundary:** this phase implements registration and verification records only. Organization sign-in and tenant-isolated student management must be completed before approved organizations are allowed to access student data. Do not merge this phase into production as a complete multi-tenant release until that follow-up work is finished and tested.

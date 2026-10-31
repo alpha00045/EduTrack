@@ -18,6 +18,8 @@ from datetime import date
 from io import BytesIO, StringIO
 import csv
 import hmac
+import base64
+import zipfile
 
 import os
 import psycopg2
@@ -1288,19 +1290,55 @@ def download_backup():
     cur = conn.cursor()
     try:
         cur.execute("SELECT roll_number,name,math,science,english FROM students ORDER BY roll_number")
-        rows = cur.fetchall()
+        students = cur.fetchall()
+        cur.execute("""SELECT student_roll,email,phone,guardian_name,date_of_birth,address,notes,
+                              photo_data,photo_mime FROM student_profiles ORDER BY student_roll""")
+        profiles = cur.fetchall()
+        cur.execute("""SELECT student_roll,academic_year,term,subject,marks
+                       FROM student_assessments ORDER BY student_roll,academic_year,term,subject""")
+        assessments = cur.fetchall()
+        cur.execute("""SELECT student_roll,attendance_date,status
+                       FROM attendance ORDER BY attendance_date,student_roll""")
+        attendance_rows = cur.fetchall()
+        cur.execute("SELECT setting_key,setting_value FROM app_settings ORDER BY setting_key")
+        settings = cur.fetchall()
     finally:
         cur.close()
         conn.close()
-    output = StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\r\n")
-    writer.writerow(["roll_number", "name", "math", "science", "english"])
-    for row in rows:
-        writer.writerow([row[0], safe_spreadsheet_text(row[1]), *row[2:]])
-    return Response(
-        "\ufeff" + output.getvalue(), mimetype="text/csv; charset=utf-8",
-        headers={"Content-Disposition": "attachment; filename=edutrack-backup.csv",
-                 "Cache-Control": "no-store"},
+
+    archive_buffer = BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        def add_csv(filename, headers, rows, transform=None):
+            output = StringIO(newline="")
+            writer = csv.writer(output, lineterminator="\\r\\n")
+            writer.writerow(headers)
+            for row in rows:
+                values = list(row)
+                if transform:
+                    values = transform(values)
+                writer.writerow(values)
+            archive.writestr(filename, "\\ufeff" + output.getvalue())
+
+        add_csv("students.csv", ["roll_number","name","math","science","english"],
+                students, lambda row: [row[0], safe_spreadsheet_text(row[1]), *row[2:]])
+        def profile_transform(row):
+            if row[7] is not None:
+                row[7] = base64.b64encode(bytes(row[7])).decode("ascii")
+            if row[4] is not None:
+                row[4] = row[4].isoformat()
+            return row
+        add_csv("profiles.csv", ["student_roll","email","phone","guardian_name","date_of_birth",
+                "address","notes","photo_base64","photo_mime"], profiles, profile_transform)
+        add_csv("assessments.csv", ["student_roll","academic_year","term","subject","marks"], assessments)
+        add_csv("attendance.csv", ["student_roll","attendance_date","status"], attendance_rows,
+                lambda row: [row[0], row[1].isoformat(), row[2]])
+        add_csv("settings.csv", ["setting_key","setting_value"], settings)
+        archive.writestr("BACKUP_README.txt",
+            "EduTrack complete backup. Includes students, profiles, profile photos, assessments, attendance and school settings. Restore is add-only for students; existing student records are never overwritten.")
+    archive_buffer.seek(0)
+    return send_file(
+        archive_buffer, as_attachment=True, download_name="edutrack-complete-backup.zip",
+        mimetype="application/zip", max_age=0,
     )
 
 
@@ -1308,7 +1346,103 @@ def download_backup():
 @admin_required
 def restore_backup():
     if request.method == "POST":
-        records, error = _read_uploaded_student_file(request.files.get("backup_file"))
+        upload = request.files.get("backup_file")
+        if not upload or not upload.filename:
+            flash("Choose an EduTrack ZIP backup or CSV file.", "danger")
+            return redirect(url_for("restore_backup"))
+        raw = upload.read(10 * 1024 * 1024 + 1)
+        if len(raw) > 10 * 1024 * 1024:
+            flash("Backup is too large. Maximum size is 10 MB.", "danger")
+            return redirect(url_for("restore_backup"))
+        if upload.filename.lower().endswith(".zip"):
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                with zipfile.ZipFile(BytesIO(raw)) as archive:
+                    allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv","BACKUP_README.txt"}
+                    if any(name not in allowed for name in archive.namelist()) or "students.csv" not in archive.namelist():
+                        flash("This is not a recognised EduTrack backup.", "danger")
+                        return redirect(url_for("restore_backup"))
+                    def read_csv(name):
+                        if name not in archive.namelist():
+                            return []
+                        content = archive.read(name).decode("utf-8-sig")
+                        return list(csv.DictReader(StringIO(content)))
+                    student_rows = read_csv("students.csv")
+                    validated = []
+                    for index, item in enumerate(student_rows, start=2):
+                        data, error = validate_student_form({
+                            "roll": item.get("roll_number",""), "name": item.get("name",""),
+                            "math": item.get("math",""), "science": item.get("science",""),
+                            "english": item.get("english",""),
+                        })
+                        if error:
+                            flash(f"Backup students.csv row {index}: {error}", "danger")
+                            return redirect(url_for("restore_backup"))
+                        validated.append(data)
+                    if len({item["roll"] for item in validated}) != len(validated):
+                        flash("Backup contains duplicate student roll numbers.", "danger")
+                        return redirect(url_for("restore_backup"))
+                    cur.executemany(
+                        """INSERT INTO students (roll_number,name,math,science,english)
+                           VALUES (%s,%s,%s,%s,%s) ON CONFLICT (roll_number) DO NOTHING""",
+                        [(str(x["roll"]),x["name"],x["math"],x["science"],x["english"]) for x in validated],
+                    )
+                    restored_students = cur.rowcount
+                    # Related records are restored only for student rolls present after the add-only student restore.
+                    profile_rows = read_csv("profiles.csv")
+                    for item in profile_rows:
+                        photo_data = base64.b64decode(item["photo_base64"], validate=True) if item.get("photo_base64") else None
+                        cur.execute(
+                            """INSERT INTO student_profiles
+                               (student_roll,email,phone,guardian_name,date_of_birth,address,notes,photo_data,photo_mime)
+                               SELECT %s,%s,%s,%s,%s,%s,%s,%s,%s
+                               WHERE EXISTS (SELECT 1 FROM students WHERE roll_number=%s)
+                               ON CONFLICT (student_roll) DO NOTHING""",
+                            (item["student_roll"],item.get("email") or None,item.get("phone") or None,
+                             item.get("guardian_name") or None,item.get("date_of_birth") or None,
+                             item.get("address") or None,item.get("notes") or None,
+                             psycopg2.Binary(photo_data) if photo_data else None,item.get("photo_mime") or None,
+                             item["student_roll"]),
+                        )
+                    for item in read_csv("assessments.csv"):
+                        cur.execute(
+                            """INSERT INTO student_assessments
+                               (student_roll,academic_year,term,subject,marks)
+                               SELECT %s,%s,%s,%s,%s WHERE EXISTS
+                               (SELECT 1 FROM students WHERE roll_number=%s)
+                               ON CONFLICT (student_roll,academic_year,term,subject) DO NOTHING""",
+                            (item["student_roll"],item["academic_year"],item["term"],item["subject"],item["marks"],item["student_roll"]),
+                        )
+                    for item in read_csv("attendance.csv"):
+                        cur.execute(
+                            """INSERT INTO attendance (student_roll,attendance_date,status)
+                               SELECT %s,%s,%s WHERE EXISTS
+                               (SELECT 1 FROM students WHERE roll_number=%s)
+                               ON CONFLICT (student_roll,attendance_date) DO NOTHING""",
+                            (item["student_roll"],item["attendance_date"],item["status"],item["student_roll"]),
+                        )
+                    for item in read_csv("settings.csv"):
+                        if item.get("setting_key") in {"school_name","pass_mark"}:
+                            cur.execute(
+                                """INSERT INTO app_settings (setting_key,setting_value)
+                                   VALUES (%s,%s) ON CONFLICT (setting_key) DO NOTHING""",
+                                (item["setting_key"],item["setting_value"]),
+                            )
+                conn.commit()
+                flash(f"Complete restore finished. {restored_students} new student records added; existing records were preserved.", "success")
+                return redirect(url_for("view_students"))
+            except (zipfile.BadZipFile, KeyError, ValueError, UnicodeDecodeError):
+                conn.rollback()
+                flash("The backup archive is damaged or contains invalid data. No changes were saved.", "danger")
+                return redirect(url_for("restore_backup"))
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cur.close()
+                conn.close()
+        records, error = _read_uploaded_student_file(upload)
         if error:
             flash(error, "danger")
             return redirect(url_for("restore_backup"))
@@ -1318,7 +1452,7 @@ def restore_backup():
             cur.executemany(
                 """INSERT INTO students (roll_number,name,math,science,english)
                    VALUES (%s,%s,%s,%s,%s) ON CONFLICT (roll_number) DO NOTHING""",
-                [(item["roll"],item["name"],item["math"],item["science"],item["english"])
+                [(str(item["roll"]),item["name"],item["math"],item["science"],item["english"])
                  for item in records],
             )
             restored = cur.rowcount

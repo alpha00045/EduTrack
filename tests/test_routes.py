@@ -20,12 +20,16 @@ ROWS = [
 ]
 
 
+_DEFAULT_ROW = object()
+
+
 class FakeCursor:
-    def __init__(self, rows=None, one=None):
+    def __init__(self, rows=None, one=_DEFAULT_ROW):
         self.rows = rows if rows is not None else ROWS
-        self.one = one if one is not None else ROWS[0]
+        self.one = ROWS[0] if one is _DEFAULT_ROW else one
         self.executed = []
         self.closed = False
+        self.rowcount = 1
 
     def execute(self, query, params=None):
         self.executed.append((query, params))
@@ -257,3 +261,43 @@ def test_unknown_route_uses_custom_404_page(client):
     response = client.get("/this-page-does-not-exist")
     assert response.status_code == 404
     assert b"Page not found" in response.data
+
+
+
+def test_about_page_renders(client):
+    response = client.get("/about")
+    assert response.status_code == 200
+    assert b"About EduTrack" in response.data
+
+
+def test_missing_student_details_returns_404(client, monkeypatch):
+    monkeypatch.setattr(
+        student_app, "get_db_connection", lambda: FakeConnection(one=None)
+    )
+    response = client.get("/student/999")
+    assert response.status_code == 404
+    assert b"Page not found" in response.data
+
+
+def test_missing_edit_student_returns_404_for_admin(client, monkeypatch):
+    login_as_admin(client)
+    monkeypatch.setattr(
+        student_app, "get_db_connection", lambda: FakeConnection(one=None)
+    )
+    response = client.get("/edit_student/999")
+    assert response.status_code == 404
+
+
+def test_missing_delete_student_returns_404_for_admin(client, monkeypatch):
+    login_as_admin(client)
+    monkeypatch.setattr(
+        student_app, "get_db_connection", lambda: FakeConnection(one=None)
+    )
+    response = client.get("/delete_student/999")
+    assert response.status_code == 404
+
+
+def test_login_with_missing_fields_returns_validation_message(client):
+    response = client.post("/login", data={}, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Invalid Username or Password" in response.data

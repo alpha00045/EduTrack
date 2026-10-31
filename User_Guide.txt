@@ -1,164 +1,151 @@
 =========================================================
-             EduTrack - User Guide
-      Student Performance Tracker System
+                 EDUTRACK USER GUIDE
+             Student Management System
 =========================================================
 
-Version: 2.0
-Developer: Sagar Nayak
-Project: EduTrack
-Technology: Python | Flask | PostgreSQL | Bootstrap | Render
+1. ABOUT EDUTRACK
+---------------------------------------------------------
+EduTrack is a Flask and PostgreSQL student management
+application. It stores student records and subject marks,
+calculates averages and grades, and provides academic
+performance summaries.
 
-=========================================================
-1. ABOUT THE PROJECT
-=========================================================
+The project also includes a command-line interface (CLI).
 
-EduTrack is a web-based and command-line Student Performance
-Management System designed to help teachers efficiently manage
-student records and academic performance.
+2. MAIN FEATURES
+---------------------------------------------------------
+WEB APPLICATION
+• Student dashboard and class statistics
+• Add, view, edit and delete student records
+• Search and sort student records
+• Automatic average and grade calculation
+• Student analytics and performance charts
+• CSV and Excel exports
+• Admin-only PDF student result cards
+• Admin login and protected management actions
+• CSRF protection for form submissions
+• Friendly 404, 500 and database-unavailable pages
 
-The system stores all records in a PostgreSQL cloud database,
-making the data accessible from anywhere through the deployed
-web application.
+COMMAND-LINE APPLICATION
+• Add students and assign marks
+• View subject toppers
+• Calculate subject class averages
+• Save a CSV-formatted local backup
+• Reload the student list without restarting the program
 
-=========================================================
-2. FEATURES
-=========================================================
+3. TECHNOLOGY
+---------------------------------------------------------
+• Python
+• Flask
+• PostgreSQL
+• Bootstrap and JavaScript
+• Chart.js
+• openpyxl
+• ReportLab
+• Gunicorn
 
-• Add New Students
-• Assign Student Grades
-• View All Students
-• Calculate Student Average
-• Find Subject Toppers
-• Calculate Class Average
-• Backup Student Records
-• Responsive Web Dashboard
-• PostgreSQL Cloud Database
-• Render Cloud Deployment
+4. RUNNING THE WEB APPLICATION LOCALLY
+---------------------------------------------------------
+1. Clone the repository:
 
-=========================================================
-3. PROJECT STRUCTURE
-=========================================================
+   git clone https://github.com/alpha00045/EduTrack.git
+   cd EduTrack
 
-EduTrack/
-│
-├── app.py
-├── main.py
-├── templates/
-├── static/
-├── requirements.txt
-├── Procfile
-├── README.md
-└── User_Guide.txt
+2. Create and activate a virtual environment:
 
-=========================================================
-4. RUNNING THE WEB APPLICATION
-=========================================================
+   python -m venv .venv
 
-1. Install the required packages
+   Windows PowerShell:
+   .\.venv\Scripts\Activate.ps1
+
+   macOS/Linux:
+   source .venv/bin/activate
+
+3. Install dependencies:
 
    pip install -r requirements.txt
 
-2. Configure the DATABASE_URL environment variable.
+4. Configure these environment variables. Do not commit
+   real credentials or the .env file.
 
-3. Start the Flask application
+   DATABASE_URL=your_postgresql_connection_string
+   SECRET_KEY=your_long_random_secret
+   ADMIN_USERNAME=your_admin_username
+   ADMIN_PASSWORD=your_strong_admin_password
+
+5. Start the web application:
 
    python app.py
 
-4. Open your browser
+6. Open:
 
    http://127.0.0.1:5000
 
-=========================================================
-5. USING THE WEB DASHBOARD
-=========================================================
+5. USING THE WEB APPLICATION
+---------------------------------------------------------
+• Open the dashboard to see class statistics and top
+  student averages.
+• Select Students > View Students to search and sort
+  student records.
+• Sign in using the configured administrator credentials
+  before adding, editing or deleting student records.
+• Open a student's details to review marks, average and
+  grade.
+• Administrators can download the student's PDF result
+  card from the details page.
+• Use Reports to download CSV/Excel files or open the
+  analytics dashboard.
 
-The dashboard allows users to:
-
-• View all registered students
-• Add new students
-• Monitor student performance
-• View dashboard statistics
-• Access cloud-stored student records
-
-All data is synchronized with the PostgreSQL database.
-
-=========================================================
-6. USING THE CLI APPLICATION
-=========================================================
-
-Run
+6. RUNNING THE COMMAND-LINE APPLICATION
+---------------------------------------------------------
+Run:
 
    python main.py
 
-Available Options
+Menu options:
 
 1. Add Student
 2. Assign Grades
-3. Subject Topper
-4. Class Average
-5. Backup Data
-6. Reload Program
+3. View Subject Topper
+4. View Class Average
+5. Save Data Locally
+6. Reload
 7. Exit
 
-=========================================================
-7. DATABASE
-=========================================================
+The local backup is written to student_backup.txt in CSV
+format. Keep the backup file in a safe location.
 
-Database: PostgreSQL
+7. DATABASE AND ERROR HANDLING
+---------------------------------------------------------
+EduTrack uses PostgreSQL. Configure the connection with
+DATABASE_URL.
 
-Main Table
+If the database is temporarily unavailable, the web
+application displays a service-unavailable message. The
+application does not display database connection details
+to visitors.
 
-students
+8. TESTS
+---------------------------------------------------------
+Install development dependencies:
 
-Columns
+   pip install -r requirements-dev.txt
 
-• Roll Number
-• Student Name
-• Math
-• Science
-• English
+Run the automated test suite:
 
-=========================================================
-8. DEPLOYMENT
-=========================================================
+   python -m pytest -q
 
-Hosting Platform:
-Render
+GitHub Actions also runs the tests for pushes and pull
+requests to the main branch.
 
-Production Server:
-Gunicorn
-
-Cloud Database:
-Render PostgreSQL
-
-=========================================================
-9. LIVE DEMO
-=========================================================
-
-Website
-
+9. LINKS
+---------------------------------------------------------
+Live application:
 https://edutrack-o3bp.onrender.com
 
-GitHub Repository
-
+GitHub repository:
 https://github.com/alpha00045/EduTrack
 
 =========================================================
-10. FUTURE IMPROVEMENTS
-=========================================================
-
-• Student Search
-• Student Edit/Delete
-• Analytics Dashboard
-• Performance Charts
-• Login Authentication
-• Export Reports
-• PDF Result Cards
-• Attendance Management
-• Mobile Responsive UI
-
-=========================================================
-Thank you for using EduTrack.
-
-Developed with ❤️ using Python and Flask.
+Developed by Sagar Nayak
 =========================================================

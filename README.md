@@ -127,7 +127,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The automated test suite covers input validation, grade and average calculations, route behavior, authentication, CSRF enforcement, CSV safety, and database failure handling. GitHub Actions runs the tests on pushes and pull requests to `main`.
+The automated test suite covers input validation, grade and average calculations, route behavior, authentication, CSRF enforcement, spreadsheet export safety, database failure handling, PDF result cards, and CLI operations. GitHub Actions runs the tests on pushes and pull requests to `main`.
 
 ## Deployment notes
 

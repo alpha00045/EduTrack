@@ -96,8 +96,10 @@ def test_backup_uses_csv_escaping_for_student_names(tmp_path, monkeypatch):
 def test_cli_main_reloads_without_recursion_and_closes_database(monkeypatch):
     class StubTracker:
         closed = False
+        refresh_count = 0
 
         def get_all_students(self):
+            self.refresh_count += 1
             return []
 
         def close(self):
@@ -113,3 +115,4 @@ def test_cli_main_reloads_without_recursion_and_closes_database(monkeypatch):
     cli_app.main()
 
     assert tracker.closed is True
+    assert tracker.refresh_count == 2

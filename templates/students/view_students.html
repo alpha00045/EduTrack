@@ -1,97 +1,115 @@
 {% extends "layouts/base.html" %}
-
-{% block title %}All Students | EduTrack{% endblock %}
-
+{% block title %}Student Directory | EduTrack{% endblock %}
 {% block content %}
-<div class="container mt-5 mb-5">
+<main class="container-fluid px-3 px-lg-4 py-4 directory-shell">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <h2 class="fw-bold mb-1">All Students</h2>
-            <p class="text-muted mb-0">Search, sort and review student performance.</p>
+            <p class="eyebrow text-primary mb-1">STUDENT MANAGEMENT</p>
+            <h1 class="h3 fw-bold mb-1">Student directory</h1>
+            <p class="text-muted mb-0">Find a student, review progress and manage records.</p>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-            <select id="sortSelect" class="form-select" aria-label="Sort students">
-                <option value="roll">Sort: Roll number</option>
-                <option value="name">Sort: Name (A–Z)</option>
-                <option value="average">Sort: Average (highest)</option>
-            </select>
-            <input type="search" id="searchInput" class="form-control"
-                   placeholder="Search students..." aria-label="Search students">
-        </div>
+        <a href="{{ url_for('add_student') }}" class="btn btn-primary">
+            <i class="bi bi-person-plus-fill me-2"></i>Add student
+        </a>
     </div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Student Records</h5>
-            <span class="badge bg-light text-primary">{{ students|length }} students</span>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table id="studentTable" class="table table-hover table-bordered align-middle mb-0">
-                    <thead class="table-dark">
-                        <tr>
-                            <th class="text-center">#</th>
-                            <th>Roll No.</th>
-                            <th>Name</th>
-                            <th>Math</th>
-                            <th>Science</th>
-                            <th>English</th>
-                            <th>Average</th>
-                            <th>Progress</th>
-                            <th>Grade</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for s in students %}
-                        <tr>
-                            <td class="text-center row-number">{{ loop.index }}</td>
-                            <td class="text-center roll">{{ s.roll }}</td>
-                            <td class="name">
-                                <a href="{{ url_for('student_details', roll=s.roll) }}"
-                                   class="text-decoration-none fw-semibold">{{ s.name }}</a>
-                            </td>
-                            <td>{{ s.math if s.math is not none else "-" }}</td>
-                            <td>{{ s.science if s.science is not none else "-" }}</td>
-                            <td>{{ s.english if s.english is not none else "-" }}</td>
-                            <td class="average">{{ s.average }}</td>
-                            <td>
-                                <div class="progress" role="progressbar"
-                                     aria-label="Average score" aria-valuenow="{{ s.average }}"
-                                     aria-valuemin="0" aria-valuemax="100">
-                                    <div class="progress-bar {% if s.average >= 60 %}bg-success{% else %}bg-danger{% endif %}"
-                                         style="width: {{ s.average }}%">
-                                        {{ s.average }}%
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="grade">
-                                {% if s.grade in ["A1", "A2"] %}
-                                    <span class="badge bg-success">{{ s.grade }}</span>
-                                {% elif s.grade in ["B1", "B2"] %}
-                                    <span class="badge bg-primary">{{ s.grade }}</span>
-                                {% elif s.grade in ["C1", "C2"] %}
-                                    <span class="badge bg-info text-dark">{{ s.grade }}</span>
-                                {% elif s.grade == "D" %}
-                                    <span class="badge bg-warning text-dark">{{ s.grade }}</span>
-                                {% else %}
-                                    <span class="badge bg-danger">{{ s.grade }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="9" class="text-center text-muted py-4">
-                                No student records found.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <p id="noSearchResults" class="text-center text-muted py-4 mb-0 d-none">
-                    No students match your search.
+    <section class="directory-toolbar mb-3">
+        <form method="GET" action="{{ url_for('view_students') }}" class="row g-2 align-items-end">
+            <div class="col-12 col-md">
+                <label for="studentSearch" class="form-label small fw-semibold">Search students</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent"><i class="bi bi-search"></i></span>
+                    <input type="search" class="form-control" id="studentSearch" name="q"
+                        value="{{ search_query }}" placeholder="Search by name or roll number..."
+                        maxlength="100">
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label for="studentSort" class="form-label small fw-semibold">Sort by</label>
+                <select class="form-select" id="studentSort" name="sort">
+                    <option value="roll" {% if sort_by == "roll" %}selected{% endif %}>Roll number</option>
+                    <option value="name" {% if sort_by == "name" %}selected{% endif %}>Name (A–Z)</option>
+                    <option value="average" {% if sort_by == "average" %}selected{% endif %}>Average (highest)</option>
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-auto d-flex gap-2">
+                <button class="btn btn-primary flex-grow-1" type="submit">Apply</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('view_students') }}">Clear</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="surface-card">
+        <div class="directory-summary">
+            <div><h2 class="section-heading mb-1">All students</h2>
+                <p class="section-subtitle mb-0">
+                    {% if total_students %}Showing {{ start_index }}–{{ end_index }} of {{ total_students }} students
+                    {% else %}No student records found{% endif %}
                 </p>
             </div>
+            <span class="directory-count"><i class="bi bi-people me-1"></i>{{ total_students }} total</span>
         </div>
-    </div>
-</div>
+        <div class="table-responsive">
+            <table class="table align-middle directory-table mb-0">
+                <thead><tr>
+                    <th scope="col">ROLL NO.</th><th scope="col">STUDENT</th>
+                    <th scope="col">MATH</th><th scope="col">SCIENCE</th>
+                    <th scope="col">ENGLISH</th><th scope="col">AVERAGE</th>
+                    <th scope="col">GRADE</th><th scope="col" class="text-end">ACTION</th>
+                </tr></thead>
+                <tbody>
+                {% for s in students %}
+                    <tr>
+                        <td class="fw-semibold">{{ s.roll }}</td>
+                        <td><a class="student-name" href="{{ url_for('student_details', roll=s.roll) }}">{{ s.name }}</a>
+                            <div class="student-meta">Student record</div></td>
+                        <td>{{ s.math if s.math is not none else "—" }}</td>
+                        <td>{{ s.science if s.science is not none else "—" }}</td>
+                        <td>{{ s.english if s.english is not none else "—" }}</td>
+                        <td><strong>{{ s.average }}%</strong></td>
+                        <td><span class="grade-pill">{{ s.grade }}</span></td>
+                        <td class="text-end"><a class="btn btn-sm btn-outline-primary"
+                            href="{{ url_for('student_details', roll=s.roll) }}" aria-label="View {{ s.name }}">
+                            View <i class="bi bi-arrow-up-right ms-1"></i></a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8">
+                        <div class="empty-state py-5">
+                            <span class="empty-icon"><i class="bi bi-search"></i></span>
+                            <h3>No matching students</h3>
+                            <p>Try another name or roll number, or clear your search.</p>
+                            <a href="{{ url_for('view_students') }}" class="btn btn-outline-primary">Clear search</a>
+                        </div>
+                    </td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if total_pages > 1 %}
+        <nav class="directory-pagination" aria-label="Student directory pages">
+            <span class="text-muted small">Page {{ page }} of {{ total_pages }}</span>
+            <ul class="pagination mb-0">
+                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, page=page-1) }}"
+                        aria-label="Previous page">Previous</a>
+                </li>
+                {% for page_number in range(1, total_pages + 1) %}
+                    {% if page_number == 1 or page_number == total_pages or (page_number >= page - 1 and page_number <= page + 1) %}
+                    <li class="page-item {% if page_number == page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, page=page_number) }}"
+                            {% if page_number == page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+                    </li>
+                    {% elif page_number == page - 2 or page_number == page + 2 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, page=page+1) }}"
+                        aria-label="Next page">Next</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+    </section>
+</main>
 {% endblock %}

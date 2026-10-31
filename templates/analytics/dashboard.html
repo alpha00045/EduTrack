@@ -1,0 +1,118 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Analytics | EduTrack{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="mb-4">
+        <h2 class="fw-bold mb-1">Academic Analytics</h2>
+        <p class="text-muted mb-0">A summary of student results and subject performance.</p>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted mb-1">Total Students</p>
+                <h2 class="fw-bold mb-0">{{ total_students }}</h2>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted mb-1">Overall Average</p>
+                <h2 class="fw-bold mb-0">{{ overall_average }}%</h2>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted mb-1">Passed Students</p>
+                <h2 class="fw-bold text-success mb-0">{{ passed }}</h2>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted mb-1">Needs Improvement</p>
+                <h2 class="fw-bold text-danger mb-0">{{ failed }}</h2>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="fw-semibold mb-3">Average by Subject</h5>
+                    <div style="height:300px"><canvas id="subjectChart" aria-label="Average marks by subject"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="fw-semibold mb-3">Grade Distribution</h5>
+                    <div style="height:300px"><canvas id="gradeChart" aria-label="Number of students in each grade"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+            <h5 class="fw-semibold mb-0">Top 5 Students</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr>
+                    <th>Rank</th><th>Roll Number</th><th>Name</th><th>Average</th><th>Grade</th>
+                </tr></thead>
+                <tbody>
+                {% for student in top_students %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ student.roll }}</td>
+                        <td>{{ student.name }}</td>
+                        <td>{{ student.average }}%</td>
+                        <td><span class="badge bg-primary">{{ student.grade }}</span></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5" class="text-center text-muted py-4">No student data available yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const subjectLabels = {{ subject_averages.keys()|list|tojson }};
+    const subjectValues = {{ subject_averages.values()|list|tojson }};
+    const gradeLabels = {{ grade_counts.keys()|list|tojson }};
+    const gradeValues = {{ grade_counts.values()|list|tojson }};
+
+    new Chart(document.getElementById("subjectChart"), {
+        type: "bar",
+        data: { labels: subjectLabels, datasets: [{
+            label: "Average marks",
+            data: subjectValues,
+            borderWidth: 1,
+            borderRadius: 6
+        }]},
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100 } }
+        }
+    });
+
+    new Chart(document.getElementById("gradeChart"), {
+        type: "doughnut",
+        data: { labels: gradeLabels, datasets: [{
+            data: gradeValues,
+            borderWidth: 2
+        }]},
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+});
+</script>
+{% endblock %}

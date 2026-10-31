@@ -83,15 +83,13 @@
                             <hr class="dropdown-divider">
                         </li>
                         {% endif %}
+                        {% if session.get("admin") %}
                         <li>
-
-                            <span class="dropdown-item text-muted">
-
-                                Analytics
-
-                            </span>
-
+                            <a class="dropdown-item" href="{{ url_for('analytics') }}">
+                                <i class="bi bi-graph-up"></i> Analytics Dashboard
+                            </a>
                         </li>
+                        {% endif %}
 
                     </ul>
 

@@ -25,6 +25,7 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 - Admin login and session-protected management routes
 - Command-line student tracker with transaction-safe operations and CSV-formatted backups
 - CSV and Excel exports
+- Admin-only downloadable PDF student result cards
 - Flash messages for user feedback
 - Environment-based admin credentials and Flask secret key
 

@@ -1343,10 +1343,12 @@ def download_backup():
         archive.writestr("BACKUP_README.txt",
             "EduTrack complete backup. Includes students, profiles, profile photos, assessments, attendance and school settings. Restore is add-only for students; existing student records are never overwritten.")
     archive_buffer.seek(0)
-    return send_file(
+    response = send_file(
         archive_buffer, as_attachment=True, download_name="edutrack-complete-backup.zip",
         mimetype="application/zip", max_age=0,
     )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/restore", methods=["GET", "POST"])

@@ -8,6 +8,7 @@ import csv
 import io
 
 import pytest
+import psycopg2
 import app as student_app
 
 
@@ -211,3 +212,44 @@ def test_csv_export_requires_admin(client):
     response = client.get("/export_csv")
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/login")
+
+
+
+def test_database_connection_failure_returns_safe_503(client, monkeypatch):
+    def fail_to_connect(*args, **kwargs):
+        raise psycopg2.OperationalError("private database connection details")
+
+    monkeypatch.setattr(student_app.psycopg2, "connect", fail_to_connect)
+    response = client.get("/")
+
+    assert response.status_code == 503
+    assert b"Service temporarily unavailable" in response.data
+    assert b"private database connection details" not in response.data
+
+
+def test_database_query_failure_rolls_back_and_closes_connection(client, monkeypatch):
+    class FailingCursor(FakeCursor):
+        def execute(self, query, params=None):
+            raise psycopg2.OperationalError("private query details")
+
+    class FailingConnection(FakeConnection):
+        def __init__(self):
+            super().__init__()
+            self.fake_cursor = FailingCursor()
+
+    connection = FailingConnection()
+    monkeypatch.setattr(
+        student_app.psycopg2, "connect", lambda *args, **kwargs: connection
+    )
+    response = client.get("/")
+
+    assert response.status_code == 503
+    assert connection.rolled_back is True
+    assert connection.closed is True
+    assert b"private query details" not in response.data
+
+
+def test_unknown_route_uses_custom_404_page(client):
+    response = client.get("/this-page-does-not-exist")
+    assert response.status_code == 404
+    assert b"Page not found" in response.data

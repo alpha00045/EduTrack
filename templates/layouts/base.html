@@ -8,6 +8,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>{% block title %}EduTrack{% endblock %}</title>
+    <script>
+        (function () {
+            try {
+                const saved = localStorage.getItem("edutrack-theme");
+                const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                document.documentElement.dataset.theme = saved || preferred;
+            } catch (_) {
+                document.documentElement.dataset.theme = "light";
+            }
+        })();
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
 

@@ -301,3 +301,29 @@ def test_login_with_missing_fields_returns_validation_message(client):
     response = client.post("/login", data={}, follow_redirects=True)
     assert response.status_code == 200
     assert b"Invalid Username or Password" in response.data
+
+
+
+def test_pdf_result_export_requires_admin(client):
+    response = client.get("/student/101/result.pdf")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_admin_can_download_student_result_pdf(client):
+    login_as_admin(client)
+    response = client.get("/student/101/result.pdf")
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data.startswith(b"%PDF")
+    assert "student-101-result.pdf" in response.headers["Content-Disposition"]
+
+
+def test_pdf_result_for_missing_student_returns_404(client, monkeypatch):
+    login_as_admin(client)
+    monkeypatch.setattr(
+        student_app, "get_db_connection", lambda: FakeConnection(one=None)
+    )
+    response = client.get("/student/999/result.pdf")
+    assert response.status_code == 404

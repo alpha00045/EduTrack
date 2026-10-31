@@ -939,9 +939,13 @@ def analytics():
     overall_average = calculate_average(
         [s["average"] for s in students]
     )
+    try:
+        current_pass_mark = int(session.get("pass_mark", 33))
+    except (TypeError, ValueError):
+        current_pass_mark = 33
     passed = sum(
         1 for s in students
-        if all(mark is not None and mark >= 33
+        if all(mark is not None and mark >= current_pass_mark
                for mark in (s["math"], s["science"], s["english"]))
     )
     failed = total_students - passed
@@ -1241,9 +1245,12 @@ def student_photo(roll):
     finally:
         cur.close()
         conn.close()
-    if not photo or not photo[0]:
+    if not photo or not photo[0] or photo[1] not in {"image/jpeg", "image/png", "image/webp"}:
         abort(404)
-    return Response(bytes(photo[0]), mimetype=photo[1], headers={"Cache-Control": "private, max-age=300"})
+    return Response(bytes(photo[0]), mimetype=photo[1], headers={
+        "Cache-Control": "private, max-age=300",
+        "X-Content-Type-Options": "nosniff",
+    })
 
 
 @app.route("/settings", methods=["GET", "POST"])
@@ -1360,7 +1367,10 @@ def restore_backup():
             try:
                 with zipfile.ZipFile(BytesIO(raw)) as archive:
                     allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv","BACKUP_README.txt"}
-                    if any(name not in allowed for name in archive.namelist()) or "students.csv" not in archive.namelist():
+                    if (any(name not in allowed for name in archive.namelist())
+                            or "students.csv" not in archive.namelist()
+                            or sum(item.file_size for item in archive.infolist()) > 25 * 1024 * 1024
+                            or any(item.file_size > 10 * 1024 * 1024 for item in archive.infolist())):
                         flash("This is not a recognised EduTrack backup.", "danger")
                         return redirect(url_for("restore_backup"))
                     def read_csv(name):
@@ -1393,6 +1403,18 @@ def restore_backup():
                     profile_rows = read_csv("profiles.csv")
                     for item in profile_rows:
                         photo_data = base64.b64decode(item["photo_base64"], validate=True) if item.get("photo_base64") else None
+                        photo_mime = item.get("photo_mime") or None
+                        if photo_data:
+                            valid_photo = (
+                                (photo_mime == "image/jpeg" and photo_data.startswith(b"\\xff\\xd8\\xff"))
+                                or (photo_mime == "image/png" and photo_data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+                                or (photo_mime == "image/webp" and len(photo_data) > 12
+                                    and photo_data[:4] == b"RIFF" and photo_data[8:12] == b"WEBP")
+                            )
+                            if not valid_photo or len(photo_data) > 1024 * 1024:
+                                raise ValueError("Invalid profile photo in backup")
+                        elif photo_mime:
+                            raise ValueError("Unexpected photo MIME type")
                         cur.execute(
                             """INSERT INTO student_profiles
                                (student_roll,email,phone,guardian_name,date_of_birth,address,notes,photo_data,photo_mime)
@@ -1402,7 +1424,7 @@ def restore_backup():
                             (item["student_roll"],item.get("email") or None,item.get("phone") or None,
                              item.get("guardian_name") or None,item.get("date_of_birth") or None,
                              item.get("address") or None,item.get("notes") or None,
-                             psycopg2.Binary(photo_data) if photo_data else None,item.get("photo_mime") or None,
+                             psycopg2.Binary(photo_data) if photo_data else None,photo_mime,
                              item["student_roll"]),
                         )
                     for item in read_csv("assessments.csv"):
@@ -1423,11 +1445,23 @@ def restore_backup():
                             (item["student_roll"],item["attendance_date"],item["status"],item["student_roll"]),
                         )
                     for item in read_csv("settings.csv"):
+                        if item.get("setting_key") == "school_name" and 1 <= len(item.get("setting_value", "")) <= 100:
+                            setting_value = item["setting_value"]
+                        elif item.get("setting_key") == "pass_mark":
+                            try:
+                                parsed_mark = int(item.get("setting_value", ""))
+                            except (TypeError, ValueError):
+                                continue
+                            if not 0 <= parsed_mark <= 100:
+                                continue
+                            setting_value = str(parsed_mark)
+                        else:
+                            continue
                         if item.get("setting_key") in {"school_name","pass_mark"}:
                             cur.execute(
                                 """INSERT INTO app_settings (setting_key,setting_value)
                                    VALUES (%s,%s) ON CONFLICT (setting_key) DO NOTHING""",
-                                (item["setting_key"],item["setting_value"]),
+                                (item["setting_key"],setting_value),
                             )
                 conn.commit()
                 flash(f"Complete restore finished. {restored_students} new student records added; existing records were preserved.", "success")
@@ -1442,6 +1476,7 @@ def restore_backup():
             finally:
                 cur.close()
                 conn.close()
+        upload.stream.seek(0)
         records, error = _read_uploaded_student_file(upload)
         if error:
             flash(error, "danger")

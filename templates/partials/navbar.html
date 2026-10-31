@@ -1,5 +1,5 @@
 <!-- Navbar Starts -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow">
+<nav class="navbar navbar-expand-lg navbar-dark app-navbar">
     <div class="container">
         <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">🎓 EduTrack</a>
 
@@ -10,7 +10,14 @@
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
+            <ul class="navbar-nav ms-auto align-items-lg-center">
+                <li class="nav-item me-lg-2">
+                    <button class="theme-toggle" type="button" id="themeToggle"
+                        aria-label="Switch to dark mode" title="Switch theme">
+                        <i class="bi bi-moon-stars" id="themeIcon" aria-hidden="true"></i>
+                        <span class="d-lg-none ms-2">Appearance</span>
+                    </button>
+                </li>
                 {% if session.get("admin") %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>

@@ -699,7 +699,11 @@ def analytics():
     overall_average = calculate_average(
         [s["average"] for s in students]
     )
-    passed = sum(1 for s in students if s["average"] >= 33)
+    passed = sum(
+        1 for s in students
+        if all(mark is not None and mark >= 33
+               for mark in (s["math"], s["science"], s["english"]))
+    )
     failed = total_students - passed
     subject_averages = {
         label: calculate_average(values)

@@ -10,13 +10,13 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 ### Student records
 - Add, view, edit, and delete student records
 - Unique roll-number handling
-- Search and sort the student list
+- Search, sort and paginate the student list\n- Bulk CSV / Excel import with all-or-nothing validation
 - Validate names, roll numbers, and marks on the server
 - Friendly not-found, server-error, and database-unavailable pages
 - About page and responsive navigation
 
 ### Academic performance
-- Automatic average and grade calculation
+- Extended student profiles with guardian/contact details, secure profile photos and academic assessment history\n- Daily attendance marking and date-wise summaries\n- Configurable school name and pass mark\n- Automatic average and grade calculation
 - Dashboard with class statistics and top students
 - Analytics dashboard with subject averages and grade distribution
 - Pass/fail summary (a student passes when every subject mark is at least 33)
@@ -26,7 +26,7 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 - Admin login and session-protected management routes
 - Student names, marks, dashboard, details and reports are visible only to authenticated admins
 - Command-line student tracker with transaction-safe operations and CSV-formatted backups
-- CSV and Excel exports with spreadsheet-formula injection protection
+- CSV and Excel exports with spreadsheet-formula injection protection\n- Complete ZIP backup of students, profiles, photos, assessments, attendance and settings\n- Add-only restore that preserves existing student records
 - Admin-only downloadable PDF student result cards
 - Flash messages for user feedback
 - Environment-based admin credentials and Flask secret key

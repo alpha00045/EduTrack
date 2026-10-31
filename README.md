@@ -22,6 +22,7 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 - Pass/fail summary (a student passes when every subject mark is at least 33)
 
 ### Reports and administration
+- Redesigned secure admin sign-in with show/hide password control
 - Admin login and session-protected management routes
 - Student names, marks, dashboard, details and reports are visible only to authenticated admins
 - Command-line student tracker with transaction-safe operations and CSV-formatted backups

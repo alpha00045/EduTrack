@@ -408,3 +408,34 @@ def test_admin_navigation_shows_student_and_report_links(client):
     assert b"View Students" in response.data
     assert b"Reports" in response.data
     assert b"Export CSV" in response.data
+
+
+
+def test_dashboard_has_personalized_greeting_and_quick_actions(client):
+    login_as_admin(client)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"Welcome back" in response.data
+    assert b"Class overview" in response.data
+    assert b"Quick actions" in response.data
+    assert b"dashboardDate" in response.data
+
+
+def test_login_page_has_accessible_password_toggle(client):
+    response = client.get("/login")
+    assert response.status_code == 200
+    assert b"loginUsername" in response.data
+    assert b"loginPassword" in response.data
+    assert b"togglePassword" in response.data
+    assert b"csrf_token" in response.data
+
+
+def test_theme_toggle_is_available_on_public_and_admin_pages(client):
+    public_response = client.get("/about")
+    assert public_response.status_code == 200
+    assert b"themeToggle" in public_response.data
+
+    login_as_admin(client)
+    admin_response = client.get("/")
+    assert admin_response.status_code == 200
+    assert b"themeToggle" in admin_response.data

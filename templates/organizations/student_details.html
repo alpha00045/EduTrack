@@ -1,5 +1,49 @@
 {% extends "layouts/base.html" %}
 {% block title %}{{ student.name }} | EduTrack{% endblock %}
 {% block content %}
-<main class="container py-4" style="max-width:850px"><a href="{{ url_for('organization_students') }}" class="small">← Students</a><section class="card border-0 shadow-sm p-4 mt-3"><div class="d-flex align-items-center gap-3"><div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:76px;height:76px"><i class="bi bi-person-fill fs-1"></i></div><div><h1 class="h3 fw-bold mb-1">{{ student.name }}</h1><div class="text-muted">Roll number: {{ student.roll }}</div></div></div><hr><h2 class="h5 fw-bold">Current marks</h2><div class="row g-3">{% for subject,mark in [('Math',student.math),('Science',student.science),('English',student.english)] %}<div class="col-md-4"><div class="p-3 rounded border"><div class="text-muted">{{ subject }}</div><div class="h3 text-primary mb-0">{{ mark }}%</div></div></div>{% endfor %}</div><div class="mt-3"><strong>Average:</strong> {{ student.average }}%</div><div class="text-muted small mt-2">Added: {{ student.joined }}</div></section></main>
+<main class="container py-4" style="max-width:1000px">
+  <a href="{{ url_for('organization_students') }}" class="small">← Students</a>
+  <section class="card border-0 shadow-sm p-4 mt-3">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      {% if student.photo_mime %}
+      <img src="{{ url_for('organization_student_photo', roll=student.roll) }}" alt="{{ student.name }} profile photo" class="rounded-circle border" style="width:112px;height:112px;object-fit:cover">
+      {% else %}
+      <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:112px;height:112px"><i class="bi bi-person-fill fs-1"></i></div>
+      {% endif %}
+      <div class="flex-grow-1"><span class="badge text-bg-primary mb-2">Student profile</span><h1 class="h3 fw-bold mb-1">{{ student.name }}</h1><div class="text-muted">Roll number: {{ student.roll }}</div><div class="text-muted small">Current average: {{ student.average }}%</div></div>
+      <a class="btn btn-primary" href="{{ url_for('organization_edit_student_profile',roll=student.roll) }}"><i class="bi bi-pencil me-1"></i>Edit full profile</a>
+    </div>
+    <hr>
+    <h2 class="h5 fw-bold">Personal information</h2>
+    <div class="row g-3 small">
+      {% for label,value in [('Date of birth',student.date_of_birth),('Gender',student.gender),('Email',student.email),('Phone',student.phone),('Guardian',student.guardian_name),('Guardian phone',student.guardian_phone),('Address',student.address)] %}
+      <div class="col-md-6"><div class="text-muted">{{ label }}</div><div class="fw-semibold">{{ value or 'Not provided' }}</div></div>{% endfor %}
+    </div>
+    <hr><h2 class="h5 fw-bold">Admission information</h2>
+    <div class="row g-3 small">
+      {% for label,value in [('Admission number',student.admission_number),('Joining date',student.joining_date),('Admission standard',student.admission_standard)] %}
+      <div class="col-md-4"><div class="text-muted">{{ label }}</div><div class="fw-semibold">{{ value or 'Not provided' }}</div></div>{% endfor %}
+    </div>
+    <hr><h2 class="h5 fw-bold">Current marks</h2>
+    <div class="row g-3">{% for subject,mark in [('Math',student.math),('Science',student.science),('English',student.english)] %}<div class="col-md-4"><div class="p-3 rounded border"><div class="text-muted">{{ subject }}</div><div class="h3 text-primary mb-0">{{ mark }}%</div></div></div>{% endfor %}</div>
+    {% if student.notes %}<hr><h2 class="h6 fw-bold">Notes</h2><p class="mb-0">{{ student.notes }}</p>{% endif %}
+  </section>
+  <section class="card border-0 shadow-sm p-4 mt-4">
+    <h2 class="h5 fw-bold">Academic history</h2>
+    <p class="text-muted small">Add marks for each standard, academic year, term and subject. Earlier records remain saved.</p>
+    <form method="POST" action="{{ url_for('organization_add_assessment',roll=student.roll) }}" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-2"><label class="form-label small">Academic year</label><input class="form-control" name="academic_year" placeholder="2026-27" maxlength="20" required></div>
+      <div class="col-md-2"><label class="form-label small">Standard</label><input class="form-control" name="standard" placeholder="Class 10" maxlength="40" required></div>
+      <div class="col-md-2"><label class="form-label small">Term / exam</label><input class="form-control" name="term" placeholder="Half-yearly" maxlength="40" required></div>
+      <div class="col-md-2"><label class="form-label small">Subject</label><input class="form-control" name="subject" placeholder="Mathematics" maxlength="60" required></div>
+      <div class="col-md-1"><label class="form-label small">Marks</label><input class="form-control" type="number" min="0" step="0.01" name="marks_obtained" required></div>
+      <div class="col-md-1"><label class="form-label small">Out of</label><input class="form-control" type="number" min="0.01" step="0.01" name="maximum_marks" required></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Save marks</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Academic year</th><th>Standard</th><th>Exam</th><th>Subject</th><th>Marks</th><th>Percentage</th></tr></thead><tbody>
+      {% for item in assessments %}<tr><td>{{ item.academic_year }}</td><td>{{ item.standard }}</td><td>{{ item.term }}</td><td>{{ item.subject }}</td><td>{{ item.marks }} / {{ item.maximum }}</td><td>{{ item.percentage }}%</td></tr>{% else %}<tr><td colspan="6" class="text-center text-muted py-4">No academic history recorded yet.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</main>
 {% endblock %}

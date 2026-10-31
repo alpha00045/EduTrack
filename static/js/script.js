@@ -10,6 +10,9 @@ document.addEventListener("DOMContentLoaded", function () {
         const originalRows = Array.from(tbody.querySelectorAll("tr"))
             .filter(row => row.querySelector(".roll"));
 
+        // Keep the dedicated empty-database message; there is nothing to search.
+        if (originalRows.length === 0) return;
+
         function updateList() {
             const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
             const sortBy = sortSelect ? sortSelect.value : "roll";

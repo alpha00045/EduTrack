@@ -59,7 +59,8 @@ EduTrack/
 │   ├── js/
 │   └── images/
 └── tests/
-    └── test_helpers.py
+    ├── test_helpers.py
+    └── test_routes.py
 ```
 
 ## Run locally
@@ -121,7 +122,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The current test suite covers input validation, average calculation, and grade boundaries. Route and database integration tests are planned.
+The automated test suite covers input validation, grade and average calculations, route behavior, authentication, CSRF enforcement, CSV safety, and database failure handling. GitHub Actions runs the tests on pushes and pull requests to `main`.
 
 ## Deployment notes
 

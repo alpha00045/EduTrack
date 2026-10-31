@@ -23,6 +23,9 @@ import zipfile
 from datetime import datetime
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 import re
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash

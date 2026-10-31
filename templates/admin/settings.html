@@ -1,0 +1,10 @@
+{% extends "layouts/base.html" %}
+{% block title %}School Settings | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4 feature-page"><div class="mb-4"><p class="eyebrow text-primary mb-1">PERSONALISE YOUR WORKSPACE</p><h1 class="h3 fw-bold">School settings</h1><p class="text-muted">Customise how EduTrack appears and calculates grades.</p></div>
+<section class="surface-card p-4" style="max-width:720px"><form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3"><label class="form-label fw-semibold" for="schoolName">School / organisation name</label><input class="form-control" id="schoolName" name="school_name" maxlength="100" required value="{{ settings.get('school_name','EduTrack') }}"></div>
+  <div class="mb-4"><label class="form-label fw-semibold" for="passMark">Minimum passing mark</label><input class="form-control" id="passMark" name="pass_mark" type="number" min="0" max="100" required value="{{ settings.get('pass_mark','33') }}"><div class="form-text">Students below this overall average receive an F grade.</div></div>
+  <button class="btn btn-primary"><i class="bi bi-check2 me-2"></i>Save settings</button>
+</form></section></main>
+{% endblock %}

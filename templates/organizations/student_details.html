@@ -1,0 +1,5 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ student.name }} | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:850px"><a href="{{ url_for('organization_students') }}" class="small">← Students</a><section class="card border-0 shadow-sm p-4 mt-3"><div class="d-flex align-items-center gap-3"><div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:76px;height:76px"><i class="bi bi-person-fill fs-1"></i></div><div><h1 class="h3 fw-bold mb-1">{{ student.name }}</h1><div class="text-muted">Roll number: {{ student.roll }}</div></div></div><hr><h2 class="h5 fw-bold">Current marks</h2><div class="row g-3">{% for subject,mark in [('Math',student.math),('Science',student.science),('English',student.english)] %}<div class="col-md-4"><div class="p-3 rounded border"><div class="text-muted">{{ subject }}</div><div class="h3 text-primary mb-0">{{ mark }}%</div></div></div>{% endfor %}</div><div class="mt-3"><strong>Average:</strong> {{ student.average }}%</div><div class="text-muted small mt-2">Added: {{ student.joined }}</div></section></main>
+{% endblock %}

@@ -140,7 +140,7 @@ def calculate_grade(average):
 def safe_spreadsheet_text(value):
     """Prevent untrusted text from being interpreted as a spreadsheet formula."""
     if isinstance(value, str):
-        formula_candidate = value.lstrip(" \\t\\r\\n\\ufeff")
+        formula_candidate = value.lstrip().lstrip("\\ufeff").lstrip()
         if formula_candidate.startswith(("=", "+", "-", "@")):
             return "'" + value
     return value

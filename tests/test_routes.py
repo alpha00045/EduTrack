@@ -499,4 +499,4 @@ def test_student_directory_invalid_page_falls_back_to_first_page(client, monkeyp
     response = client.get("/view_students?page=not-a-number")
 
     assert response.status_code == 200
-    assert b"Showing 1â2 of 2 students" in response.data
+    assert "Showing 1–2 of 2 students".encode("utf-8") in response.data

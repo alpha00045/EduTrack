@@ -895,11 +895,18 @@ def analytics():
             ORDER BY roll_number
         """)
         records = cur.fetchall()
+        cur.execute(
+            """SELECT academic_year, ROUND(AVG(marks), 2)
+               FROM student_assessments
+               GROUP BY academic_year ORDER BY academic_year"""
+        )
+        assessment_trends = cur.fetchall()
     finally:
         cur.close()
         conn.close()
 
     students = []
+    performance_bands = {"Below 40": 0, "40–59": 0, "60–79": 0, "80–100": 0}
     subject_totals = {"Math": [], "Science": [], "English": []}
     grade_counts = {"A1": 0, "A2": 0, "B1": 0, "B2": 0,
                     "C1": 0, "C2": 0, "D": 0, "F": 0}
@@ -914,6 +921,14 @@ def analytics():
             "average": average, "grade": grade
         })
         grade_counts[grade] += 1
+        if average < 40:
+            performance_bands["Below 40"] += 1
+        elif average < 60:
+            performance_bands["40–59"] += 1
+        elif average < 80:
+            performance_bands["60–79"] += 1
+        else:
+            performance_bands["80–100"] += 1
         for label, mark in zip(subject_totals, marks):
             if mark is not None:
                 subject_totals[label].append(mark)
@@ -944,6 +959,8 @@ def analytics():
         failed=failed,
         subject_averages=subject_averages,
         grade_counts=grade_counts,
+        performance_bands=performance_bands,
+        assessment_trends=assessment_trends,
         top_students=top_students
     )
 

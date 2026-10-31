@@ -740,5 +740,6 @@ def test_organization_student_details_query_is_scoped_to_tenant(client, monkeypa
     response = client.get("/organization/students/501")
     assert response.status_code == 200
     query, params = connection.fake_cursor.executed[0]
-    assert "organization_id=%s AND roll_number=%s" in query
+    normalized_query = " ".join(query.split())
+    assert "WHERE s.organization_id=%s AND s.roll_number=%s" in normalized_query
     assert params == (23, "501")

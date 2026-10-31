@@ -1,8 +1,8 @@
 {% extends "layouts/base.html" %}
 {% block title %}Restore Backup | EduTrack{% endblock %}
 {% block content %}
-<main class="container py-4 feature-page"><div class="mb-4"><p class="eyebrow text-primary mb-1">DATA PROTECTION</p><h1 class="h3 fw-bold">Restore student backup</h1><p class="text-muted">Restore missing student records from a previous EduTrack CSV backup.</p></div>
-<div class="surface-card p-4" style="max-width:700px"><div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Restore is add-only: existing roll numbers are never overwritten and no records are deleted.</div>
-<form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="form-label fw-semibold" for="backupFile">Backup CSV or XLSX</label><input class="form-control mb-3" id="backupFile" name="backup_file" type="file" accept=".csv,.xlsx" required><button class="btn btn-primary">Validate and restore</button><a href="{{ url_for('download_backup') }}" class="btn btn-outline-secondary ms-2">Download current backup</a></form>
+<main class="container py-4 feature-page"><div class="mb-4"><p class="eyebrow text-primary mb-1">DATA PROTECTION</p><h1 class="h3 fw-bold">Restore student backup</h1><p class="text-muted">Restore students, profiles, photos, assessment history, attendance and school settings from a complete EduTrack backup.</p></div>
+<div class="surface-card p-4" style="max-width:700px"><div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Restore is add-only: existing student records and related data are never overwritten. No records are deleted.</div>
+<form method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="form-label fw-semibold" for="backupFile">Complete backup ZIP (recommended), CSV or XLSX</label><input class="form-control mb-3" id="backupFile" name="backup_file" type="file" accept=".zip,.csv,.xlsx" required><button class="btn btn-primary">Validate and restore</button><a href="{{ url_for('download_backup') }}" class="btn btn-outline-secondary ms-2">Download current backup</a></form>
 </div></main>
 {% endblock %}

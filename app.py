@@ -22,7 +22,9 @@ import base64
 import zipfile
 
 import os
+import re
 import psycopg2
+from werkzeug.security import generate_password_hash
 from flask_wtf.csrf import CSRFProtect
 
 from openpyxl import Workbook, load_workbook
@@ -1534,6 +1536,158 @@ def logout():
     flash("Logged out successfully!", "success")
 
     return redirect("/")
+
+
+
+# ---------------------------------------------------------------------------
+# Organization registration and platform-admin verification
+# ---------------------------------------------------------------------------
+
+@app.route("/register-organization", methods=["GET", "POST"])
+def register_organization():
+    """Accept organization applications; access remains blocked until approval."""
+    if request.method == "POST":
+        organization_name = request.form.get("organization_name", "").strip()
+        organization_type = request.form.get("organization_type", "").strip()
+        registration_number = request.form.get("registration_number", "").strip() or None
+        contact_person = request.form.get("contact_person", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        address = request.form.get("address", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        allowed_types = {"School", "College", "University", "Coaching Institute", "Other"}
+        errors = []
+        if not organization_name or len(organization_name) > 150:
+            errors.append("Enter an organization name (up to 150 characters).")
+        if organization_type not in allowed_types:
+            errors.append("Choose a valid organization type.")
+        if not contact_person or len(contact_person) > 120:
+            errors.append("Enter the authorized contact person's name.")
+        if not re.fullmatch(r"[^@\s]{1,64}@[^@\s.]+(?:\.[^@\s.]+)+", email) or len(email) > 254:
+            errors.append("Enter a valid email address.")
+        if not re.fullmatch(r"[0-9+() .-]{7,25}", phone):
+            errors.append("Enter a valid contact phone number.")
+        if not address or len(address) > 500:
+            errors.append("Enter the organization address (up to 500 characters).")
+        if registration_number and len(registration_number) > 80:
+            errors.append("Registration number must be 80 characters or fewer.")
+        if len(password) < 12:
+            errors.append("Password must contain at least 12 characters.")
+        if password != confirm_password:
+            errors.append("The password confirmation does not match.")
+
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+            return render_template("organizations/register.html", form=request.form), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """INSERT INTO organizations
+                   (organization_name, organization_type, registration_number,
+                    contact_person, email, phone, address, password_hash, status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'pending')""",
+                (
+                    organization_name, organization_type, registration_number,
+                    contact_person, email, phone, address,
+                    generate_password_hash(password),
+                ),
+            )
+            conn.commit()
+            flash(
+                "Registration submitted successfully. Your organization is pending verification. "
+                "You will be able to access EduTrack after the system administrator approves it.",
+                "success",
+            )
+            return redirect(url_for("login"))
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            flash("An organization is already registered with this email or registration number.", "danger")
+            return render_template("organizations/register.html", form=request.form), 409
+        finally:
+            cur.close()
+            conn.close()
+
+    return render_template("organizations/register.html", form={})
+
+
+@app.route("/system/organization-requests")
+@admin_required
+def organization_requests():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id, organization_name, organization_type, registration_number,
+                      contact_person, email, phone, address, status, created_at
+               FROM organizations
+               ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, created_at DESC"""
+        )
+        requests_list = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/requests.html", requests=requests_list)
+
+
+@app.route("/system/organization-requests/<int:organization_id>/approve", methods=["POST"])
+@admin_required
+def approve_organization(organization_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """UPDATE organizations
+               SET status='approved', reviewed_at=CURRENT_TIMESTAMP,
+                   reviewed_by=%s, rejection_reason=NULL
+               WHERE id=%s AND status='pending'""",
+            (session.get("admin", "system-admin"), organization_id),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            flash("This application was not found or has already been reviewed.", "warning")
+        else:
+            conn.commit()
+            flash("Organization approved. Its account is now marked as verified.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_requests"))
+
+
+@app.route("/system/organization-requests/<int:organization_id>/reject", methods=["POST"])
+@admin_required
+def reject_organization(organization_id):
+    reason = request.form.get("rejection_reason", "").strip()
+    if len(reason) > 500:
+        flash("Rejection reason must be 500 characters or fewer.", "danger")
+        return redirect(url_for("organization_requests"))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """UPDATE organizations
+               SET status='rejected', reviewed_at=CURRENT_TIMESTAMP,
+                   reviewed_by=%s, rejection_reason=%s
+               WHERE id=%s AND status='pending'""",
+            (session.get("admin", "system-admin"), reason or None, organization_id),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            flash("This application was not found or has already been reviewed.", "warning")
+        else:
+            conn.commit()
+            flash("Organization application rejected.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_requests"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

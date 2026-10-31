@@ -1,220 +1,137 @@
-# 🎓 EduTrack
+# EduTrack — Student Management System
 
-<div align="center">
+A Flask and PostgreSQL web application for managing student records, academic marks, and performance analytics.
 
-### Student Management System
+**Live application:** https://edutrack-o3bp.onrender.com  
+**Source code:** https://github.com/alpha00045/EduTrack
 
-*A student management system built using Python, Flask, PostgreSQL and Bootstrap.*
+## Features
 
-![Python](https://img.shields.io/badge/Python-3.13-blue?style=for-the-badge&logo=python)
-![Flask](https://img.shields.io/badge/Flask-3.0-black?style=for-the-badge&logo=flask)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue?style=for-the-badge&logo=postgresql)
-![Bootstrap](https://img.shields.io/badge/Bootstrap-5-purple?style=for-the-badge&logo=bootstrap)
-![Render](https://img.shields.io/badge/Render-Deployed-46E3B7?style=for-the-badge&logo=render)
+### Student records
+- Add, view, edit, and delete student records
+- Unique roll-number handling
+- Search and sort the student list
+- Validate names, roll numbers, and marks on the server
 
-</div>
+### Academic performance
+- Automatic average and grade calculation
+- Dashboard with class statistics and top students
+- Analytics dashboard with subject averages and grade distribution
+- Pass/fail summary (a student passes when every subject mark is at least 33)
 
----
+### Reports and administration
+- Admin login and session-protected management routes
+- CSV and Excel exports
+- Flash messages for user feedback
+- Environment-based admin credentials and Flask secret key
 
-# 📖 About
+## Technology
 
-EduTrack is a project that I started while learning Python. It was first built as a simple command-line application, and later I converted it into a web application using Flask and PostgreSQL.
-
-The main goal of this project is to understand how a real Student Management System works by building it step by step.
-
-While developing EduTrack, I am learning backend development, database management, frontend design, deployment, and GitHub project management.
-
-This project is still under development, and I continue adding new features as I learn.
-
----
-
-# ✨ Features
-
-## 👨‍🎓 Student Management
-
-- ✅ Add New Student
-- ✅ View Student Details
-- ✅ Edit Student Information
-- ✅ Delete Student
-- ✅ Unique Roll Number Validation
-- 🚧 Student Search (Working on it)
-
----
-
-## 📚 Academic Records
-
-- Store marks for multiple subjects
-- Automatic average calculation
-- Automatic grade generation
-- Marks validation
-- PostgreSQL cloud database
-
----
-
-## 🌐 Web Application
-
-- Responsive Flask website
-- Bootstrap 5 interface
-- Student profile page
-- Flash messages
-- Real-time database updates
-- Mobile-friendly design (Improving)
-
----
-
-## 📊 Dashboard
-
-Current Dashboard includes:
-
-- Student Ranking
-- Average Marks
-- Highest Score
-- Progress Bar
-- Grade Badges
-
-More dashboard improvements are coming soon.
-
----
-
-## ☁ Deployment
-
-- Hosted on Render
-- PostgreSQL Cloud Database
-- Gunicorn Production Server
-- Environment Variables
-
----
-
-# 🛠 Tech Stack
-
-| Category | Technology |
-|-----------|------------|
-| Language | Python |
-| Framework | Flask |
-| Frontend | HTML5, CSS3, Bootstrap 5 |
+| Area | Technology |
+|---|---|
+| Backend | Python, Flask |
 | Database | PostgreSQL |
-| Deployment | Render |
-| Server | Gunicorn |
-| Version Control | Git & GitHub |
+| Frontend | HTML, CSS, Bootstrap 5, JavaScript |
+| Charts | Chart.js |
+| Excel export | openpyxl |
+| Production server | Gunicorn |
+| Hosting | Render |
 
----
-
-# 📂 Project Structure
+## Project structure
 
 ```text
 EduTrack/
-
 ├── app.py
+├── main.py
 ├── requirements.txt
+├── requirements-dev.txt
 ├── Procfile
-├── README.md
-
 ├── templates/
-│
-├── layouts/
-│   └── base.html
-│
-├── partials/
-│   ├── navbar.html
-│   └── footer.html
-│
-├── students/
-│   ├── list.html
-│   ├── add.html
-│   ├── details.html
-│   └── edit.html
-│
+│   ├── about/
+│   ├── analytics/
+│   ├── auth/
+│   ├── errors/
+│   ├── layouts/
+│   ├── partials/
+│   └── students/
 ├── static/
-│
-├── css/
-│   └── style.css
-│
-├── js/
-│   └── script.js
-│
-└── images/
+│   ├── css/
+│   ├── js/
+│   └── images/
+└── tests/
+    └── test_helpers.py
 ```
 
----
+## Run locally
 
-# 📸 Screenshots
+1. Clone the repository:
 
-Project screenshots will be updated as I continue improving the UI.
-## Home
+   ```bash
+   git clone https://github.com/alpha00045/EduTrack.git
+   cd EduTrack
+   ```
 
-![EduTrack Home](static/images/home-v1.png)
+2. Create and activate a virtual environment:
 
-## Dashboard
+   ```bash
+   python -m venv .venv
+   ```
 
-![EduTrack Dashboard](static/images/dashboard-v1.png)
+   Windows PowerShell:
 
----
+   ```powershell
+   .\.venv\Scripts\Activate.ps1
+   ```
 
-# 📈 Current Progress
+   macOS/Linux:
 
-- ✅ CLI Application
-- ✅ Flask Web Application
-- ✅ PostgreSQL Integration
-- ✅ Render Deployment
-- ✅ Complete CRUD Operations
-- 🚧 Dashboard Redesign
-- 🚧 Student Search
-- 🚧 Analytics
+   ```bash
+   source .venv/bin/activate
+   ```
 
----
+3. Install dependencies:
 
-# 🎯 Next Steps
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-The features I plan to add next are:
+4. Configure environment variables. Do not commit real secrets or your `.env` file.
 
-- Dashboard with Top 10 Students
-- View All Students Page
-- Search Students
-- Analytics Dashboard
-- Charts and Graphs
-- Student Login
-- Admin Login
-- Attendance Management
-- PDF Report Generation
-- Excel Export
+   ```text
+   DATABASE_URL=your_postgresql_connection_string
+   SECRET_KEY=generate_a_long_random_secret
+   ADMIN_USERNAME=choose_an_admin_username
+   ADMIN_PASSWORD=choose_a_strong_unique_password
+   ```
 
-I will keep updating this project as I continue learning.
+5. Start the Flask application:
 
----
+   ```bash
+   python app.py
+   ```
 
-# 🤝 Contributions
+Open http://127.0.0.1:5000 in your browser.
 
-Suggestions and ideas are always welcome.
+## Run tests
 
-If you find something that can be improved, feel free to open an issue or submit a pull request.
+Install development dependencies and run the automated tests:
 
----
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
 
-# 👨‍💻 About Me
+The current test suite covers input validation, average calculation, and grade boundaries. Route and database integration tests are planned.
 
-Hi, I'm **Sagar Nayak**.
+## Deployment notes
 
-I'm passionate about learning Python, Data Analytics, and Web Development by building practical projects instead of only following tutorials.
+The application is configured to run with Gunicorn in production. Set `DATABASE_URL`, `SECRET_KEY`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` in the hosting provider's environment settings. Never publish these values.
 
-EduTrack is one of my learning projects, and I continue improving it as I learn new technologies.
+## Development status
 
-GitHub:
-**https://github.com/alpha00045**
+EduTrack is actively being improved. Features and test coverage may change as the project develops. Please report bugs or suggest improvements through GitHub Issues.
 
----
+## Author
 
-# ⭐ Support
-
-If you like this project, please consider giving it a ⭐.
-
-It motivates me to keep learning and building better projects.
-
----
-
-<div align="center">
-
-### Thanks for visiting my project ❤️
-
-I'm always learning, improving, and building.
-
-</div>
+**Sagar Nayak**  
+GitHub: https://github.com/alpha00045

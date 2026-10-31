@@ -22,7 +22,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "development-only-change-me")
+app.secret_key = "edutrack_secret_key"
 csrf = CSRFProtect(app)
 
 def get_db_connection():

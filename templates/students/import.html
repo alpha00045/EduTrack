@@ -1,0 +1,23 @@
+{% extends "layouts/base.html" %}
+{% block title %}Import Students | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4 feature-page">
+  <div class="mb-4"><p class="eyebrow text-primary mb-1">BULK MANAGEMENT</p><h1 class="h3 fw-bold">Import students</h1><p class="text-muted">Add a whole class at once using a CSV or Excel spreadsheet.</p></div>
+  <div class="row g-4"><div class="col-lg-7"><section class="surface-card p-4">
+    <h2 class="section-heading">Upload your file</h2><p class="section-subtitle">Maximum 2 MB. CSV and XLSX only.</p>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label fw-semibold" for="studentFile">Student spreadsheet</label>
+      <input class="form-control mb-3" id="studentFile" name="student_file" type="file" accept=".csv,.xlsx" required>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-upload me-2"></i>Validate and import</button>
+      <a class="btn btn-outline-secondary ms-2" href="{{ url_for('view_students') }}">Cancel</a>
+    </form>
+  </section></div><div class="col-lg-5"><section class="surface-card p-4">
+    <h2 class="section-heading">Required columns</h2><p class="section-subtitle">Use these exact headings (case-insensitive).</p>
+    <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Column</th><th>Example</th></tr></thead><tbody>
+      <tr><td>roll_number</td><td>101</td></tr><tr><td>name</td><td>Asha Das</td></tr><tr><td>math</td><td>85</td></tr><tr><td>science</td><td>90</td></tr><tr><td>english</td><td>88</td></tr>
+    </tbody></table></div>
+    <p class="small text-muted mb-0">All rows are validated before saving. If any row is invalid or a roll number already exists, the import is cancelled. No partial import is made.</p>
+  </section></div></div>
+</main>
+{% endblock %}

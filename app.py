@@ -7,7 +7,8 @@ from flask import (
     Response,
     send_file,
     session,
-    g
+    g,
+    abort
 )
 
 from functools import wraps
@@ -385,7 +386,7 @@ def student_details(roll):
     conn.close()
 
     if not student:
-        return "Student Not Found"
+        abort(404)
 
     average = calculate_average([
         student[2],
@@ -445,6 +446,12 @@ def edit_student(roll):
             )
         )
 
+        if cur.rowcount == 0:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            abort(404)
+
         conn.commit()
 
         flash(
@@ -477,7 +484,7 @@ def edit_student(roll):
     conn.close()
 
     if not student:
-        return "Student Not Found"
+        abort(404)
 
     student_data = {
         "roll": student[0],
@@ -518,7 +525,7 @@ def delete_student(roll):
         cur.close()
         conn.close()
 
-        return "Student Not Found"
+        abort(404)
 
     student_data = {
         "roll": student[0],
@@ -535,6 +542,12 @@ def delete_student(roll):
             "DELETE FROM students WHERE roll_number = %s",
             (str(roll),)
         )
+
+        if cur.rowcount == 0:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            abort(404)
 
         conn.commit()
 
@@ -789,13 +802,19 @@ def analytics():
     )
 
 
+@app.route("/about")
+def about():
+    return render_template("about/about.html")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
 
         if hmac.compare_digest(username, ADMIN_USERNAME) and hmac.compare_digest(password, ADMIN_PASSWORD):
+            session.clear()
             session["admin"] = username
             flash("Login Successful!", "success")
             return redirect("/")

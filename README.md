@@ -12,6 +12,8 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 - Unique roll-number handling
 - Search and sort the student list
 - Validate names, roll numbers, and marks on the server
+- Friendly not-found, server-error, and database-unavailable pages
+- About page and responsive navigation
 
 ### Academic performance
 - Automatic average and grade calculation

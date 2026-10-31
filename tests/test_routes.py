@@ -656,9 +656,8 @@ def test_platform_admin_approval_updates_only_pending_application(client, monkey
     monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
     response = client.post(
         "/system/organization-requests/7/approve",
-        follow_redirects=True,
     )
-    assert response.status_code == 200
+    assert response.status_code == 302
     query, params = connection.fake_cursor.executed[0]
     assert "status='approved'" in query
     assert "status='pending'" in query

@@ -514,7 +514,7 @@ class UploadFixture:
 def test_student_import_parser_accepts_valid_csv():
     upload = UploadFixture(
         "class.csv",
-        b"roll_number,name,math,science,english\\n301,Asha Search,90,91,92\\n",
+        b"roll_number,name,math,science,english\n301,Asha Search,90,91,92\n",
     )
     records, error = student_app._read_uploaded_student_file(upload)
     assert error is None
@@ -527,7 +527,7 @@ def test_student_import_parser_accepts_valid_csv():
 def test_student_import_parser_rejects_duplicate_roll_numbers():
     upload = UploadFixture(
         "class.csv",
-        b"roll_number,name,math,science,english\\n301,Asha,90,91,92\\n301,Ravi,80,81,82\\n",
+        b"roll_number,name,math,science,english\n301,Asha,90,91,92\n301,Ravi,80,81,82\n",
     )
     records, error = student_app._read_uploaded_student_file(upload)
     assert records is None
@@ -537,7 +537,7 @@ def test_student_import_parser_rejects_duplicate_roll_numbers():
 def test_student_import_parser_rejects_invalid_marks_without_partial_rows():
     upload = UploadFixture(
         "class.csv",
-        b"roll_number,name,math,science,english\\n301,Asha,90,91,92\\n302,Ravi,120,81,82\\n",
+        b"roll_number,name,math,science,english\n301,Asha,90,91,92\n302,Ravi,120,81,82\n",
     )
     records, error = student_app._read_uploaded_student_file(upload)
     assert records is None

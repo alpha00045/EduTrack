@@ -298,3 +298,26 @@ footer { color: var(--text-muted); padding: 1.25rem 0; }
     .login-form { padding: 1.4rem; }
     .login-brand { padding: 1.5rem; }
 }
+
+
+/* Student directory */
+.directory-shell { max-width: 1600px; }
+.directory-toolbar { padding: 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-soft); }
+.directory-toolbar .form-label { color: var(--text-main); }
+.directory-toolbar .input-group-text { color: var(--text-muted); border-color: var(--line); }
+.directory-summary { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem 1.4rem; border-bottom: 1px solid var(--line); }
+.directory-count { padding: .45rem .75rem; border-radius: 30px; background: var(--surface-soft); color: var(--text-muted); font-size: .78rem; font-weight: 650; white-space: nowrap; }
+.directory-table thead th { padding: .9rem 1rem; background: var(--surface-soft); color: var(--text-muted); font-size: .66rem; letter-spacing: .7px; white-space: nowrap; }
+.directory-table tbody td { padding: .85rem 1rem; border-bottom: 1px solid var(--line); color: var(--text-main); white-space: nowrap; }
+.directory-table tbody tr:last-child td { border-bottom: 0; }
+.grade-pill { display: inline-block; padding: .35rem .6rem; border-radius: 8px; background: #eaf1ff; color: #3159b7; font-size: .76rem; font-weight: 700; }
+.directory-pagination { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.4rem; border-top: 1px solid var(--line); }
+.directory-pagination .page-link { border-color: var(--line); background: var(--surface); color: var(--text-main); }
+.directory-pagination .page-item.active .page-link { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.directory-pagination .page-item.disabled .page-link { background: var(--surface-soft); color: var(--text-muted); }
+:root[data-theme="dark"] .grade-pill { background: #263b60; color: #c6d8ff; }
+@media (max-width: 575.98px) {
+    .directory-pagination { align-items: flex-start; flex-direction: column; padding: 1rem; }
+    .directory-pagination .pagination { flex-wrap: wrap; }
+    .directory-summary { padding: 1rem; }
+}

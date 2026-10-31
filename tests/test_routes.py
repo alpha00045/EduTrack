@@ -11,6 +11,8 @@ import pytest
 import psycopg2
 import app as student_app
 
+REAL_GET_DB_CONNECTION = student_app.get_db_connection
+
 
 ROWS = [
     (101, "Asha Das", 85, 90, 88),
@@ -219,6 +221,7 @@ def test_database_connection_failure_returns_safe_503(client, monkeypatch):
     def fail_to_connect(*args, **kwargs):
         raise psycopg2.OperationalError("private database connection details")
 
+    monkeypatch.setattr(student_app, "get_db_connection", REAL_GET_DB_CONNECTION)
     monkeypatch.setattr(student_app.psycopg2, "connect", fail_to_connect)
     response = client.get("/")
 
@@ -238,6 +241,7 @@ def test_database_query_failure_rolls_back_and_closes_connection(client, monkeyp
             self.fake_cursor = FailingCursor()
 
     connection = FailingConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", REAL_GET_DB_CONNECTION)
     monkeypatch.setattr(
         student_app.psycopg2, "connect", lambda *args, **kwargs: connection
     )

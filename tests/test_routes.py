@@ -384,3 +384,22 @@ def test_about_page_remains_public(client):
     response = client.get("/about")
     assert response.status_code == 200
     assert b"About EduTrack" in response.data
+
+
+
+def test_guest_navigation_hides_student_and_report_links(client):
+    response = client.get("/about")
+    assert response.status_code == 200
+    assert b"Admin Login" in response.data
+    assert b"Students" not in response.data
+    assert b"Reports" not in response.data
+
+
+def test_admin_navigation_shows_student_and_report_links(client):
+    login_as_admin(client)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"Students" in response.data
+    assert b"View Students" in response.data
+    assert b"Reports" in response.data
+    assert b"Export CSV" in response.data

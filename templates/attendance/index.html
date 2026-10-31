@@ -1,0 +1,22 @@
+{% extends "layouts/base.html" %}
+{% block title %}Attendance | EduTrack{% endblock %}
+{% block content %}
+<main class="container-fluid px-3 px-lg-4 py-4 feature-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4"><div><p class="eyebrow text-primary mb-1">DAILY CLASSROOM ROUTINE</p><h1 class="h3 fw-bold mb-1">Attendance</h1><p class="text-muted mb-0">Mark and review attendance for each day.</p></div>
+    <form method="GET" class="d-flex gap-2 align-items-end"><div><label class="form-label small" for="attendanceDate">Date</label><input class="form-control" type="date" id="attendanceDate" name="attendance_date" value="{{ attendance_date }}"></div><button class="btn btn-outline-primary">View</button></form></div>
+  <div class="row g-3 mb-4">
+    {% for label,value,color in [('Students',total,'blue'),('Present',present,'green'),('Absent',absent,'red'),('Late',late,'amber'),('Unmarked',unmarked,'violet')] %}
+    <div class="col-6 col-md"><div class="surface-card p-3 h-100"><p class="small text-muted mb-1">{{ label }}</p><div class="h3 fw-bold mb-0">{{ value }}</div></div></div>
+    {% endfor %}
+  </div>
+  <section class="surface-card"><div class="directory-summary"><div><h2 class="section-heading mb-1">Class register</h2><p class="section-subtitle mb-0">Choose a status for each student, then save.</p></div><span class="directory-count">{{ attendance_date }}</span></div>
+    <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="attendance_date" value="{{ attendance_date }}">
+      <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Roll</th><th>Student</th><th>Status</th></tr></thead><tbody>
+      {% for student in students %}<tr><td>{{ student.roll }}</td><td class="fw-semibold">{{ student.name }}</td><td><select class="form-select form-select-sm attendance-select" name="status_{{ student.roll }}" aria-label="Attendance status for {{ student.name }}"><option value="" {% if not student.status %}selected{% endif %}>Not marked</option><option value="present" {% if student.status == 'present' %}selected{% endif %}>Present</option><option value="absent" {% if student.status == 'absent' %}selected{% endif %}>Absent</option><option value="late" {% if student.status == 'late' %}selected{% endif %}>Late</option></select></td></tr>
+      {% else %}<tr><td colspan="3" class="text-center text-muted py-5">Add students before taking attendance.</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% if students %}<div class="p-3 text-end border-top"><button class="btn btn-primary"><i class="bi bi-check2-circle me-2"></i>Save attendance</button></div>{% endif %}
+    </form>
+  </section>
+</main>
+{% endblock %}

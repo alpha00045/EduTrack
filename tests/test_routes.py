@@ -45,7 +45,7 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, rows=None, one=None):
+    def __init__(self, rows=None, one=_DEFAULT_ROW):
         self.fake_cursor = FakeCursor(rows=rows, one=one)
         self.committed = False
         self.rolled_back = False

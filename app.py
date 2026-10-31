@@ -275,38 +275,73 @@ def index():
 @app.route("/view_students")
 @admin_required
 def view_students():
+    search_query = request.args.get("q", "").strip()[:100]
+    sort_by = request.args.get("sort", "roll")
+    sort_columns = {
+        "roll": "roll_number ASC",
+        "name": "LOWER(name) ASC, roll_number ASC",
+        "average": "((COALESCE(math, 0) + COALESCE(science, 0) + COALESCE(english, 0)) / 3.0) DESC, roll_number ASC",
+    }
+    order_clause = sort_columns.get(sort_by, sort_columns["roll"])
+    if sort_by not in sort_columns:
+        sort_by = "roll"
+
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except (TypeError, ValueError):
+        page = 1
+    per_page = 20
+    offset = (page - 1) * per_page
 
     conn = get_db_connection()
     cur = conn.cursor()
+    try:
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM students
+                WHERE CAST(roll_number AS TEXT) ILIKE %s OR name ILIKE %s
+                """,
+                (search_pattern, search_pattern),
+            )
+        else:
+            cur.execute("SELECT COUNT(*) FROM students")
+        total_students = cur.fetchone()[0]
+        total_pages = max(1, (total_students + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
 
-    cur.execute("""
-        SELECT
-            roll_number,
-            name,
-            math,
-            science,
-            english
-        FROM students
-        ORDER BY roll_number
-    """)
-
-    students = cur.fetchall()
-
-    cur.close()
-    conn.close()
+        if search_query:
+            cur.execute(
+                f"""
+                SELECT roll_number, name, math, science, english
+                FROM students
+                WHERE CAST(roll_number AS TEXT) ILIKE %s OR name ILIKE %s
+                ORDER BY {order_clause}
+                LIMIT %s OFFSET %s
+                """,
+                (search_pattern, search_pattern, per_page, offset),
+            )
+        else:
+            cur.execute(
+                f"""
+                SELECT roll_number, name, math, science, english
+                FROM students
+                ORDER BY {order_clause}
+                LIMIT %s OFFSET %s
+                """,
+                (per_page, offset),
+            )
+        students = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
 
     student_data = []
-
     for student in students:
-
-        average = calculate_average([
-            student[2],
-            student[3],
-            student[4]
-        ])
-
-        grade = calculate_grade(average)
-
+        average = calculate_average([student[2], student[3], student[4]])
         student_data.append({
             "roll": student[0],
             "name": student[1],
@@ -314,12 +349,20 @@ def view_students():
             "science": student[3],
             "english": student[4],
             "average": average,
-            "grade": grade
+            "grade": calculate_grade(average),
         })
 
     return render_template(
         "students/view_students.html",
-        students=student_data
+        students=student_data,
+        search_query=search_query,
+        sort_by=sort_by,
+        page=page,
+        per_page=per_page,
+        total_students=total_students,
+        total_pages=total_pages,
+        start_index=offset + 1 if total_students else 0,
+        end_index=offset + len(student_data),
     )
 
 @app.route("/add_student", methods=["GET", "POST"])

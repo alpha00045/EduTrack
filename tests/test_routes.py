@@ -9,6 +9,7 @@ import io
 
 import pytest
 import psycopg2
+from openpyxl import load_workbook
 import app as student_app
 
 REAL_GET_DB_CONNECTION = student_app.get_db_connection
@@ -327,3 +328,22 @@ def test_pdf_result_for_missing_student_returns_404(client, monkeypatch):
     )
     response = client.get("/student/999/result.pdf")
     assert response.status_code == 404
+
+
+
+def test_excel_export_neutralizes_formula_names(client, monkeypatch):
+    login_as_admin(client)
+    dangerous_rows = [(301, "  =HYPERLINK(\"bad\")", 80, 81, 82)]
+    monkeypatch.setattr(
+        student_app,
+        "get_db_connection",
+        lambda: FakeConnection(rows=dangerous_rows),
+    )
+
+    response = client.get("/export_excel")
+    assert response.status_code == 200
+
+    workbook = load_workbook(io.BytesIO(response.data), data_only=False)
+    name_cell = workbook["Students"]["B2"]
+    assert name_cell.value == "'  =HYPERLINK(\"bad\")"
+    assert name_cell.data_type == "s"

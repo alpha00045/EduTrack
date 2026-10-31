@@ -12,6 +12,7 @@ from flask import (
 from functools import wraps
 from io import BytesIO, StringIO
 import csv
+import hmac
 
 import os
 import psycopg2
@@ -44,7 +45,6 @@ if missing_settings:
     )
 
 app.secret_key = SECRET_KEY
-csrf = CSRFProtect(app)
 csrf = CSRFProtect(app)
 
 def get_db_connection():

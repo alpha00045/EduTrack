@@ -8,10 +8,13 @@ from flask import (
     send_file,
     session,
     g,
-    abort
+    abort,
+    url_for,
+    has_request_context
 )
 
 from functools import wraps
+from datetime import date
 from io import BytesIO, StringIO
 import csv
 import hmac
@@ -20,7 +23,7 @@ import os
 import psycopg2
 from flask_wtf.csrf import CSRFProtect
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
 from xml.sax.saxutils import escape
@@ -31,6 +34,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 # Load sensitive configuration from environment variables.
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -119,23 +123,27 @@ def calculate_average(marks):
 
 
 def calculate_grade(average):
-
+    pass_mark = 33
+    if has_request_context():
+        try:
+            pass_mark = int(session.get("pass_mark", 33))
+        except (TypeError, ValueError):
+            pass_mark = 33
+    if average < pass_mark:
+        return "F"
     if average >= 90:
         return "A1"
-    elif average >= 80:
+    if average >= 80:
         return "A2"
-    elif average >= 70:
+    if average >= 70:
         return "B1"
-    elif average >= 60:
+    if average >= 60:
         return "B2"
-    elif average >= 50:
+    if average >= 50:
         return "C1"
-    elif average >= 40:
+    if average >= 40:
         return "C2"
-    elif average >= 33:
-        return "D"
-    else:
-        return "F"
+    return "D"
         
 def safe_spreadsheet_text(value):
     """Prevent untrusted text from being interpreted as a spreadsheet formula."""
@@ -938,6 +946,375 @@ def analytics():
         grade_counts=grade_counts,
         top_students=top_students
     )
+
+
+
+
+def _read_uploaded_student_file(upload):
+    """Parse a small CSV/XLSX import without trusting the uploaded contents."""
+    if not upload or not upload.filename:
+        return None, "Choose a CSV or Excel file first."
+    extension = upload.filename.rsplit(".", 1)[-1].lower() if "." in upload.filename else ""
+    if extension not in {"csv", "xlsx"}:
+        return None, "Only CSV and XLSX files are supported."
+    raw = upload.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+        return None, "The file is too large. Maximum size is 2 MB."
+    try:
+        if extension == "csv":
+            text_data = raw.decode("utf-8-sig")
+            reader = csv.DictReader(StringIO(text_data))
+            records = list(reader)
+        else:
+            workbook = load_workbook(BytesIO(raw), read_only=True, data_only=True)
+            sheet = workbook.active
+            values = sheet.iter_rows(values_only=True)
+            headers = next(values, None)
+            if not headers:
+                return None, "The spreadsheet is empty."
+            keys = [str(value or "").strip().lower() for value in headers]
+            records = [dict(zip(keys, row)) for row in values]
+            workbook.close()
+    except (UnicodeDecodeError, csv.Error, ValueError, OSError) as error:
+        return None, "The file could not be read. Please check its format."
+    if not records:
+        return None, "The file does not contain any student rows."
+    normalized = []
+    for row_number, row in enumerate(records, start=2):
+        clean = {str(key or "").strip().lower(): ("" if value is None else str(value).strip())
+                 for key, value in row.items() if key is not None}
+        # Accept common spreadsheet headings.
+        if "roll_number" not in clean and "roll" in clean:
+            clean["roll_number"] = clean["roll"]
+        data, error = validate_student_form({
+            "roll": clean.get("roll_number", ""),
+            "name": clean.get("name", ""),
+            "math": clean.get("math", ""),
+            "science": clean.get("science", ""),
+            "english": clean.get("english", ""),
+        })
+        if error:
+            return None, f"Row {row_number}: {error}"
+        normalized.append(data)
+    rolls = [item["roll"] for item in normalized]
+    if len(set(rolls)) != len(rolls):
+        return None, "The file contains duplicate roll numbers. No students were imported."
+    return normalized, None
+
+
+@app.route("/import_students", methods=["GET", "POST"])
+@admin_required
+def import_students():
+    if request.method == "POST":
+        records, error = _read_uploaded_student_file(request.files.get("student_file"))
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("import_students"))
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT roll_number FROM students WHERE roll_number = ANY(%s)",
+                ([str(item["roll"]) for item in records],),
+            )
+            existing = {str(row[0]) for row in cur.fetchall()}
+            duplicates = [str(item["roll"]) for item in records if str(item["roll"]) in existing]
+            if duplicates:
+                flash("Existing roll numbers found: " + ", ".join(duplicates[:10]) +
+                      ". No students were imported.", "warning")
+                return redirect(url_for("import_students"))
+            cur.executemany(
+                """INSERT INTO students (roll_number, name, math, science, english)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                [(item["roll"], item["name"], item["math"], item["science"], item["english"])
+                 for item in records],
+            )
+            conn.commit()
+            flash(f"Successfully imported {len(records)} students.", "success")
+            return redirect(url_for("view_students"))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("students/import.html")
+
+
+@app.route("/attendance", methods=["GET", "POST"])
+@admin_required
+def attendance():
+    selected_date = request.values.get("attendance_date", date.today().isoformat())
+    try:
+        selected_date = date.fromisoformat(selected_date).isoformat()
+    except (TypeError, ValueError):
+        flash("Please select a valid attendance date.", "danger")
+        return redirect(url_for("attendance"))
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            cur.execute("SELECT roll_number FROM students ORDER BY roll_number")
+            rolls = [row[0] for row in cur.fetchall()]
+            updates = []
+            for roll in rolls:
+                status = request.form.get(f"status_{roll}", "")
+                if status == "":
+                    continue
+                if status not in {"present", "absent", "late"}:
+                    flash("Invalid attendance status. No changes were saved.", "danger")
+                    return redirect(url_for("attendance", attendance_date=selected_date))
+                updates.append((roll, selected_date, status))
+            for roll, attendance_date, status in updates:
+                cur.execute(
+                    """INSERT INTO attendance (student_roll, attendance_date, status)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT (student_roll, attendance_date)
+                       DO UPDATE SET status = EXCLUDED.status, marked_at = CURRENT_TIMESTAMP""",
+                    (roll, attendance_date, status),
+                )
+            conn.commit()
+            flash(f"Attendance saved for {selected_date}.", "success")
+            return redirect(url_for("attendance", attendance_date=selected_date))
+        cur.execute(
+            """SELECT s.roll_number, s.name, a.status
+               FROM students AS s LEFT JOIN attendance AS a
+                 ON a.student_roll = s.roll_number AND a.attendance_date = %s
+               ORDER BY s.roll_number""",
+            (selected_date,),
+        )
+        students = [{"roll": r[0], "name": r[1], "status": r[2]} for r in cur.fetchall()]
+        total = len(students)
+        counts = {status: sum(item["status"] == status for item in students)
+                  for status in ("present", "absent", "late")}
+        return render_template(
+            "attendance/index.html", students=students, attendance_date=selected_date,
+            total=total, present=counts["present"], absent=counts["absent"],
+            late=counts["late"], unmarked=total - sum(counts.values()),
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/student/<roll>/profile", methods=["GET", "POST"])
+@admin_required
+def student_profile(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT roll_number, name, math, science, english FROM students WHERE roll_number=%s", (roll,))
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        if request.method == "POST" and request.form.get("action") == "assessment":
+            year = request.form.get("academic_year", "").strip()
+            term = request.form.get("term", "").strip()
+            subject = request.form.get("subject", "").strip()
+            try:
+                marks = float(request.form.get("marks", ""))
+            except (TypeError, ValueError):
+                flash("Assessment marks must be a number from 0 to 100.", "danger")
+                return redirect(url_for("student_profile", roll=roll))
+            if not year or len(year) > 20 or not term or len(term) > 40 or not subject or len(subject) > 50 or not 0 <= marks <= 100:
+                flash("Please enter valid academic year, term, subject and marks.", "danger")
+                return redirect(url_for("student_profile", roll=roll))
+            cur.execute(
+                """INSERT INTO student_assessments
+                   (student_roll, academic_year, term, subject, marks)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (student_roll, academic_year, term, subject)
+                   DO UPDATE SET marks=EXCLUDED.marks, recorded_at=CURRENT_TIMESTAMP""",
+                (roll, year, term, subject, marks),
+            )
+            conn.commit()
+            flash("Academic history saved.", "success")
+            return redirect(url_for("student_profile", roll=roll))
+        if request.method == "POST":
+            email = request.form.get("email", "").strip()
+            phone = request.form.get("phone", "").strip()
+            guardian = request.form.get("guardian_name", "").strip()
+            address = request.form.get("address", "").strip()
+            notes = request.form.get("notes", "").strip()
+            dob_raw = request.form.get("date_of_birth", "").strip()
+            dob = None
+            if dob_raw:
+                try:
+                    dob = date.fromisoformat(dob_raw)
+                    if dob > date.today():
+                        raise ValueError
+                except ValueError:
+                    flash("Enter a valid date of birth in the past.", "danger")
+                    return redirect(url_for("student_profile", roll=roll))
+            if len(email) > 254 or (email and ("@" not in email or " " in email)) or len(phone) > 30 or len(guardian) > 100 or len(address) > 500 or len(notes) > 2000:
+                flash("Please check the length and format of the profile fields.", "danger")
+                return redirect(url_for("student_profile", roll=roll))
+            photo = request.files.get("photo")
+            photo_data = None
+            photo_mime = None
+            if photo and photo.filename:
+                data = photo.read(1024 * 1024 + 1)
+                signatures = {
+                    "image/jpeg": data.startswith(b"\xff\xd8\xff"),
+                    "image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+                    "image/webp": len(data) > 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP",
+                }
+                photo_mime = next((mime for mime, valid in signatures.items() if valid), None)
+                if not photo_mime or len(data) > 1024 * 1024:
+                    flash("Upload a valid JPG, PNG or WebP photo under 1 MB.", "danger")
+                    return redirect(url_for("student_profile", roll=roll))
+                photo_data = psycopg2.Binary(data)
+            if photo_data is None:
+                cur.execute(
+                    """INSERT INTO student_profiles
+                       (student_roll,email,phone,guardian_name,date_of_birth,address,notes,updated_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)
+                       ON CONFLICT (student_roll) DO UPDATE SET email=EXCLUDED.email,
+                       phone=EXCLUDED.phone, guardian_name=EXCLUDED.guardian_name,
+                       date_of_birth=EXCLUDED.date_of_birth, address=EXCLUDED.address,
+                       notes=EXCLUDED.notes, updated_at=CURRENT_TIMESTAMP""",
+                    (roll,email,phone,guardian,dob,address,notes),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO student_profiles
+                       (student_roll,email,phone,guardian_name,date_of_birth,address,notes,photo_data,photo_mime,updated_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)
+                       ON CONFLICT (student_roll) DO UPDATE SET email=EXCLUDED.email,
+                       phone=EXCLUDED.phone, guardian_name=EXCLUDED.guardian_name,
+                       date_of_birth=EXCLUDED.date_of_birth, address=EXCLUDED.address,
+                       notes=EXCLUDED.notes, photo_data=EXCLUDED.photo_data,
+                       photo_mime=EXCLUDED.photo_mime, updated_at=CURRENT_TIMESTAMP""",
+                    (roll,email,phone,guardian,dob,address,notes,photo_data,photo_mime),
+                )
+            conn.commit()
+            flash("Student profile updated.", "success")
+            return redirect(url_for("student_profile", roll=roll))
+        cur.execute(
+            """SELECT email,phone,guardian_name,date_of_birth,address,notes,
+                      (photo_data IS NOT NULL)
+               FROM student_profiles WHERE student_roll=%s""", (roll,)
+        )
+        profile_row = cur.fetchone()
+        profile = None
+        if profile_row:
+            profile = dict(zip(("email","phone","guardian_name","date_of_birth","address","notes","has_photo"), profile_row))
+        cur.execute(
+            """SELECT academic_year,term,subject,marks,recorded_at
+               FROM student_assessments WHERE student_roll=%s
+               ORDER BY academic_year DESC, term, subject""", (roll,)
+        )
+        history = cur.fetchall()
+        return render_template("students/profile.html", student=row, profile=profile, history=history)
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/student/<roll>/photo")
+@admin_required
+def student_photo(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT photo_data, photo_mime FROM student_profiles WHERE student_roll=%s", (roll,))
+        photo = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not photo or not photo[0]:
+        abort(404)
+    return Response(bytes(photo[0]), mimetype=photo[1], headers={"Cache-Control": "private, max-age=300"})
+
+
+@app.route("/settings", methods=["GET", "POST"])
+@admin_required
+def admin_settings():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            school_name = request.form.get("school_name", "").strip()
+            try:
+                pass_mark = int(request.form.get("pass_mark", "33"))
+            except (TypeError, ValueError):
+                pass_mark = -1
+            if not school_name or len(school_name) > 100 or not 0 <= pass_mark <= 100:
+                flash("Enter a school name (up to 100 characters) and a pass mark from 0 to 100.", "danger")
+                return redirect(url_for("admin_settings"))
+            for key, value in (("school_name", school_name), ("pass_mark", str(pass_mark))):
+                cur.execute(
+                    """INSERT INTO app_settings (setting_key,setting_value)
+                       VALUES (%s,%s) ON CONFLICT (setting_key)
+                       DO UPDATE SET setting_value=EXCLUDED.setting_value, updated_at=CURRENT_TIMESTAMP""",
+                    (key, value),
+                )
+            conn.commit()
+            session["school_name"] = school_name
+            session["pass_mark"] = pass_mark
+            flash("School settings saved.", "success")
+            return redirect(url_for("admin_settings"))
+        cur.execute("SELECT setting_key,setting_value FROM app_settings")
+        settings = dict(cur.fetchall())
+        session["school_name"] = settings.get("school_name", "EduTrack")
+        session["pass_mark"] = int(settings.get("pass_mark", "33"))
+        return render_template("admin/settings.html", settings=settings)
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/backup")
+@admin_required
+def download_backup():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT roll_number,name,math,science,english FROM students ORDER BY roll_number")
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\r\n")
+    writer.writerow(["roll_number", "name", "math", "science", "english"])
+    for row in rows:
+        writer.writerow([row[0], safe_spreadsheet_text(row[1]), *row[2:]])
+    return Response(
+        "\ufeff" + output.getvalue(), mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=edutrack-backup.csv",
+                 "Cache-Control": "no-store"},
+    )
+
+
+@app.route("/restore", methods=["GET", "POST"])
+@admin_required
+def restore_backup():
+    if request.method == "POST":
+        records, error = _read_uploaded_student_file(request.files.get("backup_file"))
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("restore_backup"))
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.executemany(
+                """INSERT INTO students (roll_number,name,math,science,english)
+                   VALUES (%s,%s,%s,%s,%s) ON CONFLICT (roll_number) DO NOTHING""",
+                [(item["roll"],item["name"],item["math"],item["science"],item["english"])
+                 for item in records],
+            )
+            restored = cur.rowcount
+            conn.commit()
+            flash(f"Restore completed: {restored} new records restored; existing roll numbers were kept unchanged.", "success")
+            return redirect(url_for("view_students"))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("admin/restore.html")
 
 
 @app.route("/about")

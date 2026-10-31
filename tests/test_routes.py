@@ -578,3 +578,42 @@ def test_configurable_pass_mark_changes_grade_in_request_context(client):
         request_session["pass_mark"] = 40
         assert student_app.calculate_grade(39) == "F"
         assert student_app.calculate_grade(40) == "C2"
+
+
+def test_organization_registration_starts_pending(client):
+    response = client.post(
+        "/register-organization",
+        data={
+            "organization_name": "Sample Public School",
+            "organization_type": "School",
+            "registration_number": "SCH-2026-001",
+            "contact_person": "Asha Das",
+            "email": "office@example.edu",
+            "phone": "+91 9876543210",
+            "address": "Bhubaneswar, Odisha",
+            "password": "a-strong-test-password",
+            "confirm_password": "a-strong-test-password",
+        },
+    )
+    assert response.status_code == 302
+    assert b"Registration submitted successfully" in response.data
+    assert "INSERT INTO organizations" in t.fake_cursor.executed[0][0]
+    assert t.committed is True
+
+
+def test_organization_registration_rejects_short_password(client):
+    response = client.post(
+        "/register-organization",
+        data={
+            "organization_name": "Sample Public School",
+            "organization_type": "School",
+            "contact_person": "Asha Das",
+            "email": "office@example.edu",
+            "phone": "+91 9876543210",
+            "address": "Bhubaneswar, Odisha",
+            "password": "short",
+            "confirm_password": "short",
+        },
+    )
+    assert response.status_code == 400
+    assert b"at least 12 characters" in response.data

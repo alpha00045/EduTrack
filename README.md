@@ -23,6 +23,7 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 
 ### Reports and administration
 - Admin login and session-protected management routes
+- Command-line student tracker with transaction-safe operations and CSV-formatted backups
 - CSV and Excel exports
 - Flash messages for user feedback
 - Environment-based admin credentials and Flask secret key
@@ -62,7 +63,8 @@ EduTrack/
 │   └── images/
 └── tests/
     ├── test_helpers.py
-    └── test_routes.py
+    ├── test_routes.py
+    └── test_cli.py
 ```
 
 ## Run locally

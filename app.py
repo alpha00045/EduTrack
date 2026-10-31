@@ -20,6 +20,7 @@ import csv
 import hmac
 import base64
 import zipfile
+from datetime import datetime
 
 import os
 import re
@@ -1895,6 +1896,200 @@ def organization_student_details(roll):
             "joined": student[5],
         },
     )
+
+
+
+
+# ---------------------------------------------------------------------------
+# Detailed student profiles, photo uploads and academic history (Phase 3)
+# ---------------------------------------------------------------------------
+
+def _valid_image_upload(upload):
+    if not upload or not upload.filename:
+        return None, None
+    data = upload.read(2 * 1024 * 1024 + 1)
+    upload.stream.seek(0)
+    if not data or len(data) > 2 * 1024 * 1024:
+        return None, "Photo must be a non-empty image smaller than 2 MB."
+    if data.startswith(b"\xff\xd8\xff"):
+        mime = "image/jpeg"
+    elif data.startswith(b"\x89PNG\r\n\x1a\n"):
+        mime = "image/png"
+    elif len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        mime = "image/webp"
+    else:
+        return None, "Upload a valid JPG, PNG or WebP photo."
+    return (data, mime), None
+
+
+@app.route("/organization/students/<path:roll>/profile", methods=["GET", "POST"])
+@organization_required
+def organization_edit_student_profile(roll):
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id, roll_number, name FROM organization_students
+               WHERE organization_id=%s AND roll_number=%s""",
+            (organization_id, roll),
+        )
+        student = cur.fetchone()
+        if not student:
+            abort(404)
+
+        if request.method == "POST":
+            photo, photo_error = _valid_image_upload(request.files.get("photo"))
+            if photo_error:
+                flash(photo_error, "danger")
+                return redirect(url_for("organization_edit_student_profile", roll=roll))
+
+            joining_date = request.form.get("joining_date", "").strip() or None
+            date_of_birth = request.form.get("date_of_birth", "").strip() or None
+            for field_name, value in (("joining date", joining_date), ("date of birth", date_of_birth)):
+                if value:
+                    try:
+                        datetime.strptime(value, "%Y-%m-%d")
+                    except ValueError:
+                        flash("Enter a valid " + field_name + ".", "danger")
+                        return redirect(url_for("organization_edit_student_profile", roll=roll))
+
+            values = (
+                date_of_birth, request.form.get("gender", "").strip()[:40] or None,
+                request.form.get("email", "").strip()[:254] or None,
+                request.form.get("phone", "").strip()[:30] or None,
+                request.form.get("guardian_name", "").strip()[:120] or None,
+                request.form.get("guardian_phone", "").strip()[:30] or None,
+                request.form.get("address", "").strip()[:500] or None,
+                request.form.get("admission_number", "").strip()[:80] or None,
+                joining_date,
+                request.form.get("admission_standard", "").strip()[:40] or None,
+                request.form.get("notes", "").strip()[:2000] or None,
+            )
+            cur.execute(
+                """INSERT INTO organization_student_profiles
+                   (organization_id, student_id, date_of_birth, gender, email, phone,
+                    guardian_name, guardian_phone, address, admission_number,
+                    joining_date, admission_standard, notes)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (organization_id, student_id) DO UPDATE SET
+                    date_of_birth=EXCLUDED.date_of_birth, gender=EXCLUDED.gender,
+                    email=EXCLUDED.email, phone=EXCLUDED.phone,
+                    guardian_name=EXCLUDED.guardian_name,
+                    guardian_phone=EXCLUDED.guardian_phone, address=EXCLUDED.address,
+                    admission_number=EXCLUDED.admission_number,
+                    joining_date=EXCLUDED.joining_date,
+                    admission_standard=EXCLUDED.admission_standard,
+                    notes=EXCLUDED.notes, updated_at=CURRENT_TIMESTAMP""",
+                (organization_id, student[0], *values),
+            )
+            if photo:
+                cur.execute(
+                    """UPDATE organization_student_profiles
+                       SET photo_data=%s, photo_mime=%s, updated_at=CURRENT_TIMESTAMP
+                       WHERE organization_id=%s AND student_id=%s""",
+                    (photo[0], photo[1], organization_id, student[0]),
+                )
+            conn.commit()
+            flash("Student profile saved successfully.", "success")
+            return redirect(url_for("organization_student_details", roll=roll))
+
+        cur.execute(
+            """SELECT date_of_birth, gender, email, phone, guardian_name,
+                      guardian_phone, address, admission_number, joining_date,
+                      admission_standard, notes, photo_mime
+               FROM organization_student_profiles
+               WHERE organization_id=%s AND student_id=%s""",
+            (organization_id, student[0]),
+        )
+        profile = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+
+    profile_data = {}
+    if profile:
+        profile_data = dict(zip(
+            ("date_of_birth", "gender", "email", "phone", "guardian_name",
+             "guardian_phone", "address", "admission_number", "joining_date",
+             "admission_standard", "notes", "photo_mime"),
+            profile,
+        ))
+    return render_template(
+        "organizations/edit_profile.html",
+        student={"roll": student[1], "name": student[2]},
+        profile=profile_data,
+    )
+
+
+@app.route("/organization/students/<path:roll>/photo")
+@organization_required
+def organization_student_photo(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT p.photo_data, p.photo_mime
+               FROM organization_students s
+               JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND s.roll_number=%s""",
+            (session["organization_id"], roll),
+        )
+        photo = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not photo or not photo[0]:
+        abort(404)
+    return Response(
+        bytes(photo[0]),
+        mimetype=photo[1],
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.route("/organization/students/<path:roll>/assessments/add", methods=["POST"])
+@organization_required
+def organization_add_assessment(roll):
+    organization_id = session["organization_id"]
+    try:
+        marks = float(request.form.get("marks_obtained", ""))
+        maximum = float(request.form.get("maximum_marks", ""))
+    except (TypeError, ValueError):
+        flash("Enter valid marks and maximum marks.", "danger")
+        return redirect(url_for("organization_student_details", roll=roll))
+    academic_year = request.form.get("academic_year", "").strip()
+    standard = request.form.get("standard", "").strip()
+    term = request.form.get("term", "").strip()
+    subject = request.form.get("subject", "").strip()
+    if (not academic_year or len(academic_year) > 20 or not standard or len(standard) > 40
+        or not term or len(term) > 40 or not subject or len(subject) > 60
+        or maximum <= 0 or marks < 0 or marks > maximum):
+        flash("Check the academic year, standard, term, subject and marks.", "danger")
+        return redirect(url_for("organization_student_details", roll=roll))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO organization_student_assessments
+               (organization_id, student_id, academic_year, standard, term,
+                subject, marks_obtained, maximum_marks)
+               SELECT %s, id, %s, %s, %s, %s, %s, %s
+               FROM organization_students
+               WHERE organization_id=%s AND roll_number=%s""",
+            (organization_id, academic_year, standard, term, subject, marks, maximum, organization_id, roll),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            abort(404)
+        conn.commit()
+        flash("Academic assessment added to the student's history.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_student_details", roll=roll))
 
 
 if __name__ == "__main__":

@@ -190,6 +190,7 @@ def admin_required(f):
     return decorated_function
 
 @app.route("/")
+@admin_required
 def index():
 
     conn = get_db_connection()
@@ -272,6 +273,7 @@ def index():
     )
     
 @app.route("/view_students")
+@admin_required
 def view_students():
 
     conn = get_db_connection()
@@ -379,6 +381,7 @@ def add_student():
     return render_template("students/add.html")
 
 @app.route("/student/<int:roll>")
+@admin_required
 def student_details(roll):
 
     conn = get_db_connection()

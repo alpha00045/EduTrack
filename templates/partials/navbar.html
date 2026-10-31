@@ -1,160 +1,76 @@
 <!-- Navbar Starts -->
-
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow">
-
     <div class="container">
+        <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">🎓 EduTrack</a>
 
-        <a class="navbar-brand fw-bold" href="/">
-            🎓 EduTrack
-        </a>
-
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navbarNav" aria-controls="navbarNav"
+            aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
-
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
-
             <ul class="navbar-nav ms-auto">
-
+                {% if session.get("admin") %}
                 <li class="nav-item">
-                    <a class="nav-link active" href="/">
-                        Home
-                    </a>
+                    <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
                 </li>
 
                 <li class="nav-item dropdown">
-
-                    <a class="nav-link dropdown-toggle" href="#" id="studentsDropdown" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-
+                    <a class="nav-link dropdown-toggle" href="#" id="studentsDropdown"
+                        role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Students
-
                     </a>
-
-                    <ul class="dropdown-menu">
-
-                        <li>
-                            <a class="dropdown-item" href="/view_students">
-                                View Students
-                            </a>
-                        </li>
-
-                        {% if session.get("admin") %}
-                        <li>
-                            <a class="dropdown-item" href="/add_student">
-                                Add Student
-                            </a>
-                        </li>
-                        {% endif %}
+                    <ul class="dropdown-menu" aria-labelledby="studentsDropdown">
+                        <li><a class="dropdown-item" href="{{ url_for('view_students') }}">View Students</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('add_student') }}">Add Student</a></li>
                     </ul>
-
                 </li>
 
                 <li class="nav-item dropdown">
-
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-
                         Reports
-
                     </a>
-
                     <ul class="dropdown-menu">
-                        {% if session.get("admin") %}
-                        <li>
-                            <a class="dropdown-item" href="/export_csv">
-
-                                Export CSV
-
-                            </a>
-                        </li>
-
-                        <li>
-                            <a class="dropdown-item" href="/export_excel">
-
-                                Export Excel
-
-                            </a>
-                        </li>
-
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        {% endif %}
-                        {% if session.get("admin") %}
+                        <li><a class="dropdown-item" href="{{ url_for('export_csv') }}">Export CSV</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('export_excel') }}">Export Excel</a></li>
+                        <li><hr class="dropdown-divider"></li>
                         <li>
                             <a class="dropdown-item" href="{{ url_for('analytics') }}">
                                 <i class="bi bi-graph-up"></i> Analytics Dashboard
                             </a>
                         </li>
-                        {% endif %}
-
                     </ul>
-
                 </li>
 
-               {% if session.get("admin") %}
-
-<li class="nav-item dropdown">
-
-    <a class="nav-link dropdown-toggle"
-       href="#"
-       role="button"
-       data-bs-toggle="dropdown">
-
-        <i class="bi bi-person-circle"></i>
-        {{ session["admin"] }}
-
-    </a>
-
-    <ul class="dropdown-menu">
-
-        <li>
-
-            <form method="POST" action="/logout" class="m-0">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="dropdown-item">
-                    <i class="bi bi-box-arrow-right"></i>
-                    Logout
-                </button>
-            </form>
-
-        </li>
-
-    </ul>
-
-</li>
-
-{% else %}
-
-<li class="nav-item">
-
-    <a class="nav-link"
-       href="/login">
-
-        <i class="bi bi-box-arrow-in-right"></i>
-        Login
-
-    </a>
-
-</li>
-
-{% endif %}
-
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle"></i> {{ session["admin"] }}
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <form method="POST" action="{{ url_for('logout') }}" class="m-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="dropdown-item">
+                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </li>
+                {% else %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('about') }}">
-                        About
+                    <a class="nav-link" href="{{ url_for('login') }}">
+                        <i class="bi bi-box-arrow-in-right"></i> Admin Login
                     </a>
                 </li>
+                {% endif %}
 
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('about') }}">About</a>
+                </li>
             </ul>
-
         </div>
-
     </div>
-
 </nav>
-
 <!-- Navbar Ends -->

@@ -80,19 +80,40 @@ def login_as_admin(client):
         session["admin"] = "test-admin"
 
 
-def test_home_page_renders_students_and_summary(client):
+def test_home_page_requires_admin(client):
+    response = client.get("/")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_home_page_renders_students_and_summary_for_admin(client):
+    login_as_admin(client)
     response = client.get("/")
     assert response.status_code == 200
     assert b"Asha Das" in response.data
 
 
-def test_students_page_renders_records(client):
+def test_students_page_requires_admin(client):
+    response = client.get("/view_students")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_students_page_renders_records_for_admin(client):
+    login_as_admin(client)
     response = client.get("/view_students")
     assert response.status_code == 200
     assert b"Ravi Kumar" in response.data
 
 
-def test_student_details_page_renders_record(client):
+def test_student_details_page_requires_admin(client):
+    response = client.get("/student/101")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_student_details_page_renders_record_for_admin(client):
+    login_as_admin(client)
     response = client.get("/student/101")
     assert response.status_code == 200
     assert b"Asha Das" in response.data
@@ -223,6 +244,8 @@ def test_csv_export_requires_admin(client):
 
 
 def test_database_connection_failure_returns_safe_503(client, monkeypatch):
+    login_as_admin(client)
+
     def fail_to_connect(*args, **kwargs):
         raise psycopg2.OperationalError("private database connection details")
 
@@ -236,6 +259,8 @@ def test_database_connection_failure_returns_safe_503(client, monkeypatch):
 
 
 def test_database_query_failure_rolls_back_and_closes_connection(client, monkeypatch):
+    login_as_admin(client)
+
     class FailingCursor(FakeCursor):
         def execute(self, query, params=None):
             raise psycopg2.OperationalError("private query details")
@@ -272,6 +297,7 @@ def test_about_page_renders(client):
 
 
 def test_missing_student_details_returns_404(client, monkeypatch):
+    login_as_admin(client)
     monkeypatch.setattr(
         student_app, "get_db_connection", lambda: FakeConnection(one=None)
     )
@@ -347,3 +373,38 @@ def test_excel_export_neutralizes_formula_names(client, monkeypatch):
     name_cell = workbook["Students"]["B2"]
     assert name_cell.value == "'  =HYPERLINK(\"bad\")"
     assert name_cell.data_type == "s"
+
+
+
+@pytest.mark.parametrize("path", ["/", "/view_students", "/student/101"])
+def test_student_data_pages_do_not_leak_records_to_guests(client, path):
+    response = client.get(path, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Asha Das" not in response.data
+    assert b"Ravi Kumar" not in response.data
+    assert b"Please login as Admin first." in response.data
+
+
+def test_about_page_remains_public(client):
+    response = client.get("/about")
+    assert response.status_code == 200
+    assert b"About EduTrack" in response.data
+
+
+
+def test_guest_navigation_hides_student_and_report_links(client):
+    response = client.get("/about")
+    assert response.status_code == 200
+    assert b"Admin Login" in response.data
+    assert b"Students" not in response.data
+    assert b"Reports" not in response.data
+
+
+def test_admin_navigation_shows_student_and_report_links(client):
+    login_as_admin(client)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"Students" in response.data
+    assert b"View Students" in response.data
+    assert b"Reports" in response.data
+    assert b"Export CSV" in response.data

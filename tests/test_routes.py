@@ -663,3 +663,82 @@ def test_platform_admin_approval_updates_only_pending_application(client, monkey
     assert "status='pending'" in query
     assert params[1] == 7
     assert connection.committed is True
+
+def test_organization_login_page_is_public(client):
+    response = client.get("/organization/login")
+    assert response.status_code == 200
+    assert b"Organization sign in" in response.data
+
+
+def test_organization_student_pages_require_organization_login(client):
+    response = client.get("/organization/students")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_pending_organization_cannot_sign_in(client, monkeypatch):
+    connection = FakeConnection(one=(
+        17, "Pending School",
+        student_app.generate_password_hash("a-strong-test-password"),
+        "pending", None,
+    ))
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/organization/login",
+        data={"email": "pending@example.edu", "password": "a-strong-test-password"},
+    )
+    assert response.status_code == 200
+    assert b"awaiting verification" in response.data
+    with client.session_transaction() as session:
+        assert "organization_id" not in session
+
+
+def test_approved_organization_can_sign_in(client, monkeypatch):
+    connection = FakeConnection(one=(
+        17, "Approved School",
+        student_app.generate_password_hash("a-strong-test-password"),
+        "approved", None,
+    ))
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/organization/login",
+        data={"email": "approved@example.edu", "password": "a-strong-test-password"},
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization")
+    with client.session_transaction() as session:
+        assert session["organization_id"] == 17
+        assert session["organization_name"] == "Approved School"
+
+
+def test_organization_add_student_scopes_insert_to_current_organization(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+        session["organization_name"] = "Tenant School"
+    connection = FakeConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/organization/students/add",
+        data={
+            "roll": "501", "name": "Tenant Student",
+            "math": "91", "science": "92", "english": "93",
+        },
+    )
+    assert response.status_code == 302
+    query, params = connection.fake_cursor.executed[0]
+    assert "INSERT INTO organization_students" in query
+    assert params[0] == 23
+    assert connection.committed is True
+
+
+def test_organization_student_details_query_is_scoped_to_tenant(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+    row = ("501", "Tenant Student", 91, 92, 93, None)
+    connection = FakeConnection(one=row)
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.get("/organization/students/501")
+    assert response.status_code == 200
+    query, params = connection.fake_cursor.executed[0]
+    assert "organization_id=%s AND roll_number=%s" in query
+    assert params == (23, "501")

@@ -80,19 +80,40 @@ def login_as_admin(client):
         session["admin"] = "test-admin"
 
 
-def test_home_page_renders_students_and_summary(client):
+def test_home_page_requires_admin(client):
+    response = client.get("/")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_home_page_renders_students_and_summary_for_admin(client):
+    login_as_admin(client)
     response = client.get("/")
     assert response.status_code == 200
     assert b"Asha Das" in response.data
 
 
-def test_students_page_renders_records(client):
+def test_students_page_requires_admin(client):
+    response = client.get("/view_students")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_students_page_renders_records_for_admin(client):
+    login_as_admin(client)
     response = client.get("/view_students")
     assert response.status_code == 200
     assert b"Ravi Kumar" in response.data
 
 
-def test_student_details_page_renders_record(client):
+def test_student_details_page_requires_admin(client):
+    response = client.get("/student/101")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_student_details_page_renders_record_for_admin(client):
+    login_as_admin(client)
     response = client.get("/student/101")
     assert response.status_code == 200
     assert b"Asha Das" in response.data
@@ -347,3 +368,19 @@ def test_excel_export_neutralizes_formula_names(client, monkeypatch):
     name_cell = workbook["Students"]["B2"]
     assert name_cell.value == "'  =HYPERLINK(\"bad\")"
     assert name_cell.data_type == "s"
+
+
+
+@pytest.mark.parametrize("path", ["/", "/view_students", "/student/101"])
+def test_student_data_pages_do_not_leak_records_to_guests(client, path):
+    response = client.get(path, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Asha Das" not in response.data
+    assert b"Ravi Kumar" not in response.data
+    assert b"Please login as Admin first." in response.data
+
+
+def test_about_page_remains_public(client):
+    response = client.get("/about")
+    assert response.status_code == 200
+    assert b"About EduTrack" in response.data

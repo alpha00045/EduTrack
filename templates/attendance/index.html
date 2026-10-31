@@ -1,0 +1,93 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Attendance | EduTrack{% endblock %}
+
+{% block content %}
+<main class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 fw-bold mb-1">Attendance Management</h1>
+            <p class="text-muted mb-0">Record and review daily student attendance.</p>
+        </div>
+        <form method="GET" action="{{ url_for('attendance') }}" class="d-flex align-items-end gap-2">
+            <div>
+                <label for="attendance_date" class="form-label mb-1">Attendance date</label>
+                <input class="form-control" type="date" id="attendance_date" name="attendance_date"
+                    value="{{ attendance_date }}" required>
+            </div>
+            <button class="btn btn-outline-primary" type="submit">View</button>
+        </form>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted small mb-1">Total students</p><div class="h3 mb-0">{{ total }}</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted small mb-1">Present</p><div class="h3 text-success mb-0">{{ present }}</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted small mb-1">Absent</p><div class="h3 text-danger mb-0">{{ absent }}</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                <p class="text-muted small mb-1">Late / Unmarked</p>
+                <div class="h3 mb-0">{{ late }} / {{ unmarked }}</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+            <h2 class="h5 mb-0">Student attendance — {{ attendance_date }}</h2>
+        </div>
+        <div class="card-body">
+            {% if students %}
+            <form method="POST" action="{{ url_for('attendance') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>Roll No.</th><th>Student name</th><th style="min-width: 170px;">Status</th></tr></thead>
+                        <tbody>
+                        {% for student in students %}
+                            <tr>
+                                <td>{{ student.roll }}</td>
+                                <td>{{ student.name }}</td>
+                                <td>
+                                    <select class="form-select" name="status_{{ student.roll }}"
+                                        aria-label="Attendance status for {{ student.name }}">
+                                        <option value="" {% if not student.status %}selected{% endif %}>Not marked</option>
+                                        <option value="present" {% if student.status == "present" %}selected{% endif %}>Present</option>
+                                        <option value="absent" {% if student.status == "absent" %}selected{% endif %}>Absent</option>
+                                        <option value="late" {% if student.status == "late" %}selected{% endif %}>Late</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2-circle me-1"></i> Save attendance
+                    </button>
+                </div>
+            </form>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-people display-5 text-muted"></i>
+                <h3 class="h5 mt-3">No students found</h3>
+                <p class="text-muted mb-0">Add student records before marking attendance.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</main>
+{% endblock %}

@@ -16,6 +16,8 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 - About page and responsive navigation
 
 ### Academic performance
+- Daily attendance marking with present, absent, and late statuses
+- Date-wise attendance summaries and unmarked student counts
 - Automatic average and grade calculation
 - Dashboard with class statistics and top students
 - Analytics dashboard with subject averages and grade distribution
@@ -118,6 +120,10 @@ EduTrack/
    ```
 
 Open http://127.0.0.1:5000 in your browser.
+
+## Database migrations
+
+The attendance feature requires the SQL migration in `migrations/001_create_attendance.sql`. Review and apply it manually to PostgreSQL before using Attendance. The application does not run schema changes automatically.
 
 ## Run tests
 

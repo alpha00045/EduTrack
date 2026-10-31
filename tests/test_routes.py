@@ -408,3 +408,76 @@ def test_admin_navigation_shows_student_and_report_links(client):
     assert b"View Students" in response.data
     assert b"Reports" in response.data
     assert b"Export CSV" in response.data
+
+
+
+def test_attendance_page_requires_admin(client):
+    response = client.get("/attendance")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_admin_can_view_daily_attendance(client, monkeypatch):
+    login_as_admin(client)
+    rows = [(101, "Asha Das", "present"), (102, "Ravi Kumar", None)]
+    connection = FakeConnection(rows=rows)
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.get("/attendance?attendance_date=2026-10-31")
+
+    assert response.status_code == 200
+    assert b"Attendance Management" in response.data
+    assert b"Asha Das" in response.data
+    assert b"Present" in response.data
+    assert b"Unmarked" in response.data
+
+
+def test_attendance_post_saves_statuses_in_one_transaction(client, monkeypatch):
+    login_as_admin(client)
+    connection = FakeConnection(rows=[(101,), (102,)])
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.post(
+        "/attendance",
+        data={
+            "attendance_date": "2026-10-31",
+            "status_101": "present",
+            "status_102": "late",
+        },
+    )
+
+    assert response.status_code == 302
+    assert connection.committed is True
+    insert_queries = [
+        query for query, _ in connection.fake_cursor.executed
+        if "INSERT INTO attendance" in query
+    ]
+    assert len(insert_queries) == 2
+    assert connection.fake_cursor.executed[-1][1] == (102, "2026-10-31", "late")
+
+
+def test_invalid_attendance_status_is_not_saved(client, monkeypatch):
+    login_as_admin(client)
+    connection = FakeConnection(rows=[(101,)])
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.post(
+        "/attendance",
+        data={"attendance_date": "2026-10-31", "status_101": "holiday"},
+    )
+
+    assert response.status_code == 302
+    assert connection.committed is False
+    assert len(connection.fake_cursor.executed) == 1
+
+
+def test_invalid_attendance_date_is_rejected(client, monkeypatch):
+    login_as_admin(client)
+
+    def fail_if_db_is_used():
+        pytest.fail("Invalid attendance date must be rejected before database access")
+
+    monkeypatch.setattr(student_app, "get_db_connection", fail_if_db_is_used)
+    response = client.get("/attendance?attendance_date=not-a-date")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/attendance")

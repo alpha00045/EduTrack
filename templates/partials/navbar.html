@@ -113,13 +113,13 @@
 
         <li>
 
-            <a class="dropdown-item"
-               href="/logout">
-
-                <i class="bi bi-box-arrow-right"></i>
-                Logout
-
-            </a>
+            <form method="POST" action="/logout" class="m-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="dropdown-item">
+                    <i class="bi bi-box-arrow-right"></i>
+                    Logout
+                </button>
+            </form>
 
         </li>
 

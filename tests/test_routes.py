@@ -620,3 +620,47 @@ def test_organization_registration_rejects_short_password(client):
     )
     assert response.status_code == 400
     assert b"at least 12 characters" in response.data
+
+
+def test_organization_registration_page_is_public(client):
+    response = client.get("/register-organization")
+    assert response.status_code == 200
+    assert b"Register your organization" in response.data
+    assert b"organization_name" in response.data
+
+
+def test_organization_requests_require_platform_admin(client):
+    response = client.get("/system/organization-requests")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_platform_admin_can_review_organization_applications(client, monkeypatch):
+    login_as_admin(client)
+    row = (
+        1, "Sample School", "School", "SCH-001", "Asha Das",
+        "office@example.edu", "+91 9876543210", "Bhubaneswar",
+        "pending", None,
+    )
+    connection = FakeConnection(rows=[row])
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.get("/system/organization-requests")
+    assert response.status_code == 200
+    assert b"Sample School" in response.data
+    assert b"Approve" in response.data
+
+
+def test_platform_admin_approval_updates_only_pending_application(client, monkeypatch):
+    login_as_admin(client)
+    connection = FakeConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/system/organization-requests/7/approve",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    query, params = connection.fake_cursor.executed[0]
+    assert "status='approved'" in query
+    assert "status='pending'" in query
+    assert params[1] == 7
+    assert connection.committed is True

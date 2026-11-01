@@ -2480,6 +2480,15 @@ def organization_download_backup():
         cur.execute("""SELECT setting_key,setting_value FROM organization_settings
                        WHERE organization_id=%s ORDER BY setting_key""", (oid,))
         settings = cur.fetchall()
+        cur.execute("""SELECT id,subject_name FROM organization_subjects
+                       WHERE organization_id=%s ORDER BY subject_name""", (oid,))
+        subject_rows = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,sub.subject_name,m.marks
+            FROM organization_student_subject_marks m
+            JOIN organization_students s ON s.organization_id=m.organization_id AND s.id=m.student_id
+            JOIN organization_subjects sub ON sub.organization_id=m.organization_id AND sub.id=m.subject_id
+            WHERE m.organization_id=%s ORDER BY s.roll_number,sub.subject_name""", (oid,))
+        subject_mark_rows = cur.fetchall()
     finally:
         cur.close()
         conn.close()
@@ -2515,8 +2524,10 @@ def organization_download_backup():
         add_csv("attendance.csv", ["roll_number","attendance_date","status"], attendance_rows,
             lambda row: [row[0],row[1].isoformat(),row[2]])
         add_csv("settings.csv", ["setting_key","setting_value"], settings)
+        add_csv("subjects.csv", ["subject_name"], [[row[1]] for row in subject_rows])
+        add_csv("subject_marks.csv", ["roll_number","subject_name","marks"], subject_mark_rows)
         archive.writestr("BACKUP_README.txt",
-            "EduTrack organization backup. Restore is add-only: existing student, profile, assessment, attendance and settings records are not overwritten.")
+            "EduTrack organization backup. Includes custom subjects and student subject marks. Restore is add-only; existing records are not overwritten.")
     buffer.seek(0)
     response = send_file(buffer, as_attachment=True,
         download_name="edutrack-organization-backup.zip", mimetype="application/zip", max_age=0)
@@ -2541,7 +2552,7 @@ def organization_restore_backup():
         oid = session["organization_id"]
         try:
             with zipfile.ZipFile(BytesIO(raw)) as archive:
-                allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv","BACKUP_README.txt"}
+                allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv",\n                           "subjects.csv","subject_marks.csv","BACKUP_README.txt"}
                 names = archive.namelist()
                 if (len(names) != len(set(names)) or any(name not in allowed for name in names)
                     or "students.csv" not in names
@@ -2624,6 +2635,30 @@ def organization_restore_backup():
                         (organization_id,student_id,attendance_date,status)
                         VALUES (%s,%s,%s,%s) ON CONFLICT (organization_id,student_id,attendance_date) DO NOTHING""",
                         (oid,student_ids[roll],item["attendance_date"],status))
+                for item in read_rows("subjects.csv"):
+                    subject_name = (item.get("subject_name") or "").strip()
+                    if not subject_name or len(subject_name) > 80:
+                        raise ValueError("Invalid subject name in backup")
+                    cur.execute("""INSERT INTO organization_subjects (organization_id,subject_name)
+                        VALUES (%s,%s) ON CONFLICT (organization_id,subject_name) DO NOTHING""",
+                        (oid, subject_name))
+                cur.execute("SELECT id,subject_name FROM organization_subjects WHERE organization_id=%s", (oid,))
+                subject_ids = {str(name).strip().lower(): int(subject_id) for subject_id, name in cur.fetchall()}
+                for item in read_rows("subject_marks.csv"):
+                    roll = str(item.get("roll_number", ""))
+                    subject_name = (item.get("subject_name") or "").strip().lower()
+                    if roll not in student_ids or subject_name not in subject_ids:
+                        raise ValueError("Unknown student or subject in subject_marks.csv")
+                    try:
+                        mark = float(item.get("marks", ""))
+                    except (TypeError, ValueError):
+                        raise ValueError("Invalid subject mark in backup")
+                    if not 0 <= mark <= 100:
+                        raise ValueError("Subject marks must be between 0 and 100")
+                    cur.execute("""INSERT INTO organization_student_subject_marks
+                        (organization_id,student_id,subject_id,marks)
+                        VALUES (%s,%s,%s,%s) ON CONFLICT (organization_id,student_id,subject_id) DO NOTHING""",
+                        (oid, student_ids[roll], subject_ids[subject_name], mark))
                 for item in read_rows("settings.csv"):
                     if item.get("setting_key") == "pass_mark":
                         mark = int(item.get("setting_value",""))

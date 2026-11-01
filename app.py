@@ -168,7 +168,7 @@ def validate_student_form(form, include_roll=True):
     if not name or len(name) > 100:
         return None, "Student name is required and must be 100 characters or fewer."
 
-    data = {"name": name}
+    data = {"name": name, "standard": form.get("standard", "").strip()[:40] or None, "semester": form.get("semester", "").strip()[:20] or None}
     if include_roll:
         try:
             roll = int(form.get("roll", ""))
@@ -358,15 +358,17 @@ def add_student():
             cur.execute(
                 """
                 INSERT INTO students
-                (roll_number, name, math, science, english)
-                VALUES (%s, %s, %s, %s, %s)
+                (roll_number, name, math, science, english, standard, semester)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     student_form["roll"],
                     student_form["name"],
                     student_form["math"],
                     student_form["science"],
-                    student_form["english"]
+                    student_form["english"],
+                    student_form["standard"],
+                    student_form["semester"]
                 )
             )
 
@@ -469,7 +471,9 @@ def edit_student(roll):
                 name=%s,
                 math=%s,
                 science=%s,
-                english=%s
+                english=%s,
+                standard=%s,
+                semester=%s
             WHERE roll_number=%s
             """,
             (
@@ -477,6 +481,8 @@ def edit_student(roll):
                 student_form["math"],
                 student_form["science"],
                 student_form["english"],
+                student_form["standard"],
+                student_form["semester"],
                 roll
             )
         )
@@ -506,7 +512,9 @@ def edit_student(roll):
             name,
             math,
             science,
-            english
+            english,
+            standard,
+            semester
         FROM students
         WHERE roll_number=%s
         """,
@@ -526,7 +534,9 @@ def edit_student(roll):
         "name": student[1],
         "math": student[2],
         "science": student[3],
-        "english": student[4]
+        "english": student[4],
+        "standard": student[5],
+        "semester": student[6]
     }
 
     return render_template(

@@ -2306,6 +2306,48 @@ def organization_analytics():
         subjects=subjects, attendance_counts=attendance_counts)
 
 
+
+
+@app.route("/organization/settings", methods=["GET", "POST"])
+@organization_required
+def organization_settings():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            try:
+                pass_mark = int(request.form.get("pass_mark", "33"))
+            except (TypeError, ValueError):
+                pass_mark = -1
+            if not 0 <= pass_mark <= 100:
+                flash("Pass mark must be between 0 and 100.", "danger")
+                return redirect(url_for("organization_settings"))
+            cur.execute(
+                """INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+                   VALUES (%s, 'pass_mark', %s)
+                   ON CONFLICT (organization_id, setting_key)
+                   DO UPDATE SET setting_value=EXCLUDED.setting_value, updated_at=CURRENT_TIMESTAMP""",
+                (oid, str(pass_mark)),
+            )
+            conn.commit()
+            session["pass_mark"] = pass_mark
+            flash("Organization settings saved.", "success")
+            return redirect(url_for("organization_settings"))
+        cur.execute(
+            """SELECT setting_value FROM organization_settings
+               WHERE organization_id=%s AND setting_key='pass_mark'""",
+            (oid,),
+        )
+        row = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    pass_mark = int(row[0]) if row else 33
+    session["pass_mark"] = pass_mark
+    return render_template("organizations/settings.html", pass_mark=pass_mark)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
     

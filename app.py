@@ -852,90 +852,53 @@ def download_student_result(roll):
 @app.route("/analytics")
 @admin_required
 def analytics():
-    conn = get_db_connection()
-    cur = conn.cursor()
+    org=request.args.get("organization_id","all")
+    standard=request.args.get("standard","").strip()[:40]
+    semester=request.args.get("semester","").strip()[:20]
+    conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute("""
-            SELECT roll_number, name, math, science, english
-            FROM students
-            ORDER BY roll_number
-        """)
-        records = cur.fetchall()
-        cur.execute(
-            """SELECT academic_year, ROUND(AVG(marks), 2)
-               FROM student_assessments
-               GROUP BY academic_year ORDER BY academic_year"""
-        )
-        assessment_trends = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-
-    students = []
-    performance_bands = {"Below 40": 0, "40–59": 0, "60–79": 0, "80–100": 0}
-    subject_totals = {"Math": [], "Science": [], "English": []}
-    grade_counts = {"A1": 0, "A2": 0, "B1": 0, "B2": 0,
-                    "C1": 0, "C2": 0, "D": 0, "F": 0}
-
-    for row in records:
-        marks = row[2:5]
-        average = calculate_average(marks)
-        grade = calculate_grade(average)
-        students.append({
-            "roll": row[0], "name": row[1],
-            "math": row[2], "science": row[3], "english": row[4],
-            "average": average, "grade": grade
-        })
-        grade_counts[grade] += 1
-        if average < 40:
-            performance_bands["Below 40"] += 1
-        elif average < 60:
-            performance_bands["40–59"] += 1
-        elif average < 80:
-            performance_bands["60–79"] += 1
+        cur.execute("SELECT id,name FROM organizations WHERE status='approved' ORDER BY name")
+        organizations=cur.fetchall()
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard")
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE semester IS NOT NULL AND semester<>'' ORDER BY semester")
+        semesters=[x[0] for x in cur.fetchall()]
+        clauses=[]; params=[]
+        if org=="admin":
+            if standard: clauses.append("standard=%s"); params.append(standard)
+            if semester: clauses.append("semester=%s"); params.append(semester)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            cur.execute("SELECT roll_number,name,math,science,english FROM students"+where+" ORDER BY roll_number",tuple(params))
+            records=cur.fetchall()
+            cur.execute("SELECT academic_year,ROUND(AVG(marks),2) FROM student_assessments GROUP BY academic_year ORDER BY academic_year")
+            trends=cur.fetchall()
         else:
-            performance_bands["80–100"] += 1
-        for label, mark in zip(subject_totals, marks):
-            if mark is not None:
-                subject_totals[label].append(mark)
-
-    total_students = len(students)
-    overall_average = calculate_average(
-        [s["average"] for s in students]
-    )
-    try:
-        current_pass_mark = int(session.get("pass_mark", 33))
-    except (TypeError, ValueError):
-        current_pass_mark = 33
-    passed = sum(
-        1 for s in students
-        if all(mark is not None and mark >= current_pass_mark
-               for mark in (s["math"], s["science"], s["english"]))
-    )
-    failed = total_students - passed
-    subject_averages = {
-        label: calculate_average(values)
-        for label, values in subject_totals.items()
-    }
-    top_students = sorted(
-        students, key=lambda item: item["average"], reverse=True
-    )[:5]
-
-    return render_template(
-        "analytics/dashboard.html",
-        total_students=total_students,
-        overall_average=overall_average,
-        passed=passed,
-        failed=failed,
-        subject_averages=subject_averages,
-        grade_counts=grade_counts,
-        performance_bands=performance_bands,
-        assessment_trends=assessment_trends,
-        top_students=top_students
-    )
-
-
-
+            if org!="all":
+                try: clauses.append("s.organization_id=%s"); params.append(int(org))
+                except ValueError: org="all"
+            if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+            if semester: clauses.append("p.semester=%s"); params.append(semester)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            cur.execute("SELECT s.roll_number,s.name,s.math,s.science,s.english FROM organization_students s LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id"+where+" ORDER BY s.roll_number",tuple(params))
+            records=cur.fetchall(); trends=[]
+    finally:
+        cur.close(); conn.close()
+    students=[]; bands={"Below 40":0,"40–59":0,"60–79":0,"80–100":0}
+    totals={"Math":[],"Science":[],"English":[]}
+    grades={"A1":0,"A2":0,"B1":0,"B2":0,"C1":0,"C2":0,"D":0,"F":0}
+    for r in records:
+        marks=r[2:5]; avg=calculate_average(marks); grade=calculate_grade(avg)
+        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"average":avg,"grade":grade})
+        grades[grade]+=1
+        bands["Below 40" if avg<40 else "40–59" if avg<60 else "60–79" if avg<80 else "80–100"]+=1
+        for label,mark in zip(totals,marks):
+            if mark is not None: totals[label].append(mark)
+    count=len(students); overall=calculate_average([x["average"] for x in students])
+    try: pass_mark=int(session.get("pass_mark",33))
+    except (TypeError,ValueError): pass_mark=33
+    passed=sum(1 for x in students if all(m is not None and m>=pass_mark for m in (x["math"],x["science"],x["english"])))
+    subjects={k:calculate_average(v) for k,v in totals.items()}
+    return render_template("analytics/dashboard.html",total_students=count,overall_average=overall,passed=passed,failed=count-passed,subject_averages=subjects,grade_counts=grades,performance_bands=bands,assessment_trends=trends,top_students=sorted(students,key=lambda x:x["average"],reverse=True)[:5],organizations=organizations,selected_org=org,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 def _read_uploaded_student_file(upload):
     """Parse a small CSV/XLSX import without trusting the uploaded contents."""

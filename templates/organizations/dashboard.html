@@ -9,8 +9,8 @@
     <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="text-muted">Highest average</div><div class="display-6 fw-bold">{{ highest }}%</div></div></div>
   </div>
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><h2 class="h4 fw-bold mb-0">Recent students</h2><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" href="{{ url_for('organization_students') }}">View students</a><a class="btn btn-primary" href="{{ url_for('organization_add_student') }}">Add student</a><a class="btn btn-outline-secondary" href="{{ url_for('organization_analytics') }}">Analytics</a></div></div>
-  <div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Roll number</th><th>Name</th><th>Math</th><th>Science</th><th>English</th><th>Average</th></tr></thead><tbody>
-  {% for student in students %}<tr><td>{{ student.roll }}</td><td><a href="{{ url_for('organization_student_details', roll=student.roll) }}">{{ student.name }}</a></td><td>{{ student.math }}</td><td>{{ student.science }}</td><td>{{ student.english }}</td><td>{{ student.average }}%</td></tr>{% else %}<tr><td colspan="6" class="text-center text-muted py-4">No students yet. Add your first student to get started.</td></tr>{% endfor %}
+  <div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Roll number</th><th>Name</th>{% for subject_id,subject_name in subjects %}<th>{{ subject_name }}</th>{% endfor %}<th>Average</th></tr></thead><tbody>
+  {% for student in students %}<tr><td>{{ student.roll }}</td><td><a href="{{ url_for('organization_student_details', roll=student.roll) }}">{{ student.name }}</a></td>{% for subject_id,subject_name in subjects %}<td>{{ student.marks.get(subject_id, '—') }}</td>{% endfor %}<td>{{ student.average }}%</td></tr>{% else %}<tr><td colspan="{{ subjects|length + 3 }}" class="text-center text-muted py-4">No students yet. Add your first student to get started.</td></tr>{% endfor %}
   </tbody></table></div></div>
 </main>
 {% endblock %}

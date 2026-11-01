@@ -1,16 +1,51 @@
 {% extends "layouts/base.html" %}
 {% block title %}Organization Settings | EduTrack{% endblock %}
 {% block content %}
-<main class="container py-4" style="max-width:760px">
-  <a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a>
-  <h1 class="h2 fw-bold mt-2 mb-4">Organization settings</h1>
+<main class="container py-4" style="max-width:820px">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div><a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2">Settings</h1></div>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-label="More organization options" title="More options"><i class="bi bi-three-dots-vertical"></i></button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{{ url_for('organization_attendance') }}"><i class="bi bi-calendar-check me-2"></i>Attendance</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('organization_analytics') }}"><i class="bi bi-graph-up me-2"></i>Analytics</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{{ url_for('organization_export_csv') }}">Export CSV</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('organization_export_excel') }}">Export Excel</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('organization_download_backup') }}">Download backup</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('organization_restore_backup') }}">Restore backup</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><form method="POST" action="{{ url_for('organization_logout') }}" class="m-0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="dropdown-item text-danger" type="submit">Sign out</button></form></li>
+      </ul>
+    </div>
+  </div>
   {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
-  <form method="POST" class="card border-0 shadow-sm p-4">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label class="form-label fw-semibold" for="passMark">Pass mark (%)</label>
-    <input class="form-control" id="passMark" name="pass_mark" type="number" min="0" max="100" value="{{ pass_mark }}" required>
-    <p class="form-text">This setting applies only to your organization's student grading.</p>
-    <button class="btn btn-primary align-self-start">Save settings</button>
-  </form>
+  <section class="card border-0 shadow-sm p-4 mb-4">
+    <h2 class="h5 fw-bold">Grading settings</h2>
+    <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="save_settings">
+      <label class="form-label fw-semibold" for="passMark">Pass mark (%)</label>
+      <input class="form-control mb-2" id="passMark" name="pass_mark" type="number" min="0" max="100" value="{{ pass_mark }}" required>
+      <p class="form-text">This setting applies only to your organization's student grading.</p>
+      <button class="btn btn-primary">Save settings</button>
+    </form>
+  </section>
+  <section class="card border-0 shadow-sm p-4">
+    <h2 class="h5 fw-bold">Manage subjects</h2>
+    <p class="text-muted">Add the subjects taught by your organization. New subjects appear in Add Student, Edit Student and student marks.</p>
+    <form method="POST" class="row g-2 mb-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_subject">
+      <div class="col"><label class="visually-hidden" for="subjectName">Subject name</label><input class="form-control" id="subjectName" name="subject_name" maxlength="80" placeholder="Enter a subject name" required></div>
+      <div class="col-auto"><button class="btn btn-primary">Add subject</button></div>
+    </form>
+    <div class="list-group">
+      {% for subject_id, subject_name in subjects %}
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+        <span>{{ subject_name }}</span>
+        {% if subject_name|lower not in ['math','science','english'] %}
+        <form method="POST" onsubmit="return confirm('Remove this subject and its marks from all students?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete_subject"><input type="hidden" name="subject_id" value="{{ subject_id }}"><button class="btn btn-sm btn-outline-danger">Remove</button></form>
+        {% else %}<span class="badge text-bg-light">Default</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 </main>
 {% endblock %}

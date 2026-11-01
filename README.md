@@ -191,3 +191,10 @@ After migrations 003 and 004, review and manually apply `migrations/005_organiza
 2. Apply migrations 003, 004 and 005 in order, if they have not already been applied.
 3. Test organization registration, approval, login, student CRUD, imports/exports, attendance, analytics, settings and backup/restore using a test organization and dummy data.
 4. Keep the changes on the feature branch until the owner has reviewed and approved the pull request.
+
+
+### Organization custom subjects (migration 006)
+
+Organization administrators can manage their own subject list from Settings. The initial Math, Science and English subjects are retained, and additional subjects can be added. Subject marks are stored in organization-scoped tables.
+
+After migrations 003, 004 and 005, take a verified backup and manually apply `migrations/006_organization_custom_subjects.sql`. This migration seeds the existing three subjects and copies their current marks into the new subject-mark table. Do not merge/deploy the feature until migration 006 and the organization workflows have been tested on a staging database.

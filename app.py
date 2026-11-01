@@ -1793,45 +1793,31 @@ def _save_organization_subject_values(cur, organization_id, student_id, values):
 @app.route("/organization")
 @organization_required
 def organization_dashboard():
-    organization_id = session["organization_id"]
-    conn = get_db_connection()
-    cur = conn.cursor()
+    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute(
-            """SELECT COUNT(*),
-                      COALESCE(ROUND(AVG((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0),2),0),
-                      COALESCE(MAX((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0),0)
-               FROM organization_students WHERE organization_id=%s""",
-            (organization_id,),
-        )
-        summary = cur.fetchone()
-        cur.execute(
-            """SELECT roll_number, name, math, science, english
-               FROM organization_students WHERE organization_id=%s
-               ORDER BY created_at DESC, roll_number LIMIT 8""",
-            (organization_id,),
-        )
-        students = cur.fetchall()
+        subjects=_organization_subjects(cur,oid)
+        cur.execute("SELECT id,roll_number,name FROM organization_students WHERE organization_id=%s ORDER BY created_at DESC,roll_number",(oid,))
+        rows=cur.fetchall()
+        all_averages=[]
+        recent=[]
+        for sid,roll,name in rows:
+            cur.execute("""SELECT subject_id,marks FROM organization_student_subject_marks
+                WHERE organization_id=%s AND student_id=%s""",(oid,sid))
+            marks={int(k):float(v) for k,v in cur.fetchall()}
+            vals=list(marks.values())
+            avg=round(sum(vals)/len(vals),2) if vals else 0
+            all_averages.append(avg)
+            if len(recent)<8:
+                recent.append({"roll":roll,"name":name,"marks":marks,"average":avg})
+        scored=[x for x in all_averages if x>0]
+        class_average=round(sum(scored)/len(scored),2) if scored else 0
+        highest=max(scored) if scored else 0
     finally:
-        cur.close()
-        conn.close()
-
-    recent = []
-    for student in students:
-        average = calculate_average(student[2:5])
-        recent.append({
-            "roll": student[0], "name": student[1],
-            "math": student[2], "science": student[3],
-            "english": student[4], "average": average,
-        })
-    return render_template(
-        "organizations/dashboard.html",
-        organization_name=session.get("organization_name", "Organization"),
-        total_students=summary[0] or 0,
-        average=summary[1] or 0,
-        highest=summary[2] or 0,
-        students=recent,
-    )
+        cur.close(); conn.close()
+    return render_template("organizations/dashboard.html",
+        organization_name=session.get("organization_name","Organization"),
+        total_students=len(rows),average=class_average,highest=highest,
+        students=recent,subjects=subjects)
 
 
 @app.route("/organization/students")

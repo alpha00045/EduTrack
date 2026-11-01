@@ -2569,12 +2569,7 @@ def organization_settings():
                 (oid, subject_id),
             )
             subject_averages.append((subject_name, cur.fetchone()[0]))
-        cur.execute(
-            """SELECT status,COUNT(*) FROM organization_attendance
-            WHERE organization_id=%s AND attendance_date=%s GROUP BY status""",
-            (oid, attendance_date),
-        )
-        analytics_attendance_counts = dict(cur.fetchall())
+        analytics_attendance_counts = attendance_counts
     finally:
         cur.close()
         conn.close()

@@ -2316,30 +2316,44 @@ def organization_attendance():
 @app.route("/organization/analytics")
 @organization_required
 def organization_analytics():
-    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
+    oid=session["organization_id"]
+    standard=request.args.get("standard","").strip()[:40]
+    semester=request.args.get("semester","").strip()[:20]
+    conn=get_db_connection(); cur=conn.cursor()
     try:
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard",(oid,))
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester",(oid,))
+        semesters=[x[0] for x in cur.fetchall()]
+        clauses=["s.organization_id=%s"]; params=[oid]
+        if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+        if semester: clauses.append("p.semester=%s"); params.append(semester)
+        where=" AND ".join(clauses)
         cur.execute("""SELECT COUNT(DISTINCT s.id),COALESCE(ROUND(AVG(m.marks),2),0),
             COALESCE(MAX(avg_marks.avg),0),COALESCE(MIN(avg_marks.avg),0)
             FROM organization_students s
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
             LEFT JOIN organization_student_subject_marks m ON m.organization_id=s.organization_id AND m.student_id=s.id
-            LEFT JOIN (SELECT organization_id,student_id,AVG(marks) AS avg
-                FROM organization_student_subject_marks GROUP BY organization_id,student_id) avg_marks
-              ON avg_marks.organization_id=s.organization_id AND avg_marks.student_id=s.id
-            WHERE s.organization_id=%s""",(oid,))
-        summary=cur.fetchone()
-        subjects=_organization_subjects(cur,oid)
-        subject_averages=[]
+            LEFT JOIN (SELECT organization_id,student_id,AVG(marks) AS avg FROM organization_student_subject_marks GROUP BY organization_id,student_id) avg_marks
+            ON avg_marks.organization_id=s.organization_id AND avg_marks.student_id=s.id
+            WHERE """+where,tuple(params))
+        summary=cur.fetchone(); subjects=_organization_subjects(cur,oid); subject_averages=[]
         for subject_id,subject_name in subjects:
-            cur.execute("""SELECT COALESCE(ROUND(AVG(marks),2),0)
-                FROM organization_student_subject_marks WHERE organization_id=%s AND subject_id=%s""",(oid,subject_id))
+            cur.execute("""SELECT COALESCE(ROUND(AVG(m.marks),2),0)
+                FROM organization_student_subject_marks m JOIN organization_students s
+                ON s.organization_id=m.organization_id AND s.id=m.student_id
+                LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+                WHERE """+where+" AND m.subject_id=%s",tuple(params+[subject_id]))
             subject_averages.append((subject_name,cur.fetchone()[0]))
-        cur.execute("""SELECT status,COUNT(*) FROM organization_attendance
-            WHERE organization_id=%s AND attendance_date=CURRENT_DATE GROUP BY status""",(oid,))
+        cur.execute("""SELECT a.status,COUNT(*) FROM organization_attendance a
+            JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE """+where+" AND a.attendance_date=CURRENT_DATE GROUP BY a.status",tuple(params))
         attendance_counts=dict(cur.fetchall())
-    finally:
-        cur.close(); conn.close()
-    return render_template("organizations/analytics.html",summary=summary,
-        subjects=subject_averages,attendance_counts=attendance_counts)
+    finally: cur.close(); conn.close()
+    return render_template("organizations/analytics.html",summary=summary,subjects=subject_averages,
+        attendance_counts=attendance_counts,standards=standards,semesters=semesters,
+        selected_standard=standard,selected_semester=semester)
 
 
 @app.route("/organization/settings", methods=["GET", "POST"])

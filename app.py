@@ -2552,7 +2552,8 @@ def organization_restore_backup():
         oid = session["organization_id"]
         try:
             with zipfile.ZipFile(BytesIO(raw)) as archive:
-                allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv",\n                           "subjects.csv","subject_marks.csv","BACKUP_README.txt"}
+                allowed = {"students.csv", "profiles.csv", "assessments.csv", "attendance.csv", "settings.csv",
+                           "subjects.csv", "subject_marks.csv", "BACKUP_README.txt"}
                 names = archive.namelist()
                 if (len(names) != len(set(names)) or any(name not in allowed for name in names)
                     or "students.csv" not in names

@@ -2736,62 +2736,6 @@ def organization_download_student_result(roll):
         download_name=f"student-result-{student[1]}.pdf", mimetype="application/pdf")
     response.headers["Cache-Control"] = "private, no-store"
     return response
-
-
-@app.route("/organization/students/<path:roll>/result.pdf")
-@organization_required
-def organization_download_student_result(roll):
-    oid = session["organization_id"]
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("""SELECT id,roll_number,name FROM organization_students
-            WHERE organization_id=%s AND roll_number=%s""", (oid,roll))
-        student = cur.fetchone()
-        if student:
-            cur.execute("""SELECT sub.subject_name,m.marks FROM organization_student_subject_marks m
-                JOIN organization_subjects sub ON sub.organization_id=m.organization_id AND sub.id=m.subject_id
-                WHERE m.organization_id=%s AND m.student_id=%s ORDER BY sub.subject_name""",(oid,student[0]))
-            subject_marks=cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-    if not student:
-        abort(404)
-    average = calculate_average([x[1] for x in subject_marks])
-    grade = calculate_grade(average)
-    styles = getSampleStyleSheet()
-    buffer = BytesIO()
-    document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=48, leftMargin=48,
-        topMargin=48, bottomMargin=48, title=f"EduTrack Result - {student[1]}")
-    story = [
-        Paragraph("EduTrack Student Result Card", styles["Title"]),
-        Spacer(1, 12),
-        Paragraph(f"<b>Student Name:</b> {escape(str(student[1]))}", styles["BodyText"]),
-        Paragraph(f"<b>Roll Number:</b> {escape(str(student[0]))}", styles["BodyText"]),
-        Spacer(1, 18),
-    ]
-    result_rows = [["Subject", "Marks"]]
-    for subject, mark in subject_marks:
-        result_rows.append([subject, str(mark)])
-    result_rows.extend([["Average", f"{average}%"], ["Grade", grade]])
-    table = Table(result_rows, colWidths=[240, 180])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#244A73")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D7DEE8")),
-        ("PADDING", (0, 0), (-1, -1), 9),
-    ]))
-    story.append(table)
-    document.build(story)
-    buffer.seek(0)
-    response = send_file(buffer, as_attachment=True,
-        download_name=f"student-result-{student[1]}.pdf", mimetype="application/pdf")
-    response.headers["Cache-Control"] = "private, no-store"
-    return response
-
-
 if __name__ == "__main__":
     app.run(debug=True)
     

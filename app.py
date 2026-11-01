@@ -2503,9 +2503,16 @@ def organization_restore_backup():
                         raise ValueError("Invalid assessment marks in backup")
                     cur.execute("""INSERT INTO organization_student_assessments
                         (organization_id,student_id,academic_year,standard,term,subject,marks_obtained,maximum_marks)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        SELECT %s,%s,%s,%s,%s,%s,%s,%s
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM organization_student_assessments
+                            WHERE organization_id=%s AND student_id=%s AND academic_year=%s
+                              AND standard=%s AND term=%s AND subject=%s
+                              AND marks_obtained=%s AND maximum_marks=%s
+                        )""",
                         (oid,student_ids[roll],item["academic_year"],item["standard"],item["term"],
-                         item["subject"],marks,maximum))
+                         item["subject"],marks,maximum,oid,student_ids[roll],item["academic_year"],
+                         item["standard"],item["term"],item["subject"],marks,maximum))
                 for item in read_rows("attendance.csv"):
                     roll = str(item.get("roll_number",""))
                     status = item.get("status","")

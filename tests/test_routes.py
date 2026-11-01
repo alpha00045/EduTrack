@@ -804,3 +804,42 @@ def test_organization_result_pdf_requires_organization_login(client):
     response = client.get("/organization/students/501/result.pdf")
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/organization/login")
+
+def test_organization_import_parser_accepts_custom_subjects():
+    upload = UploadFixture(
+        "class.csv",
+        b"roll_number,name,math,science,english,computer\n501,Tenant Student,91,92,93,95\n",
+    )
+    records, error = student_app._read_organization_student_file(
+        upload, [(1, "Math"), (2, "Science"), (3, "English"), (8, "Computer")]
+    )
+    assert error is None
+    assert records == [{
+        "roll": 501,
+        "name": "Tenant Student",
+        "marks": {1: 91.0, 2: 92.0, 3: 93.0, 8: 95.0},
+    }]
+
+
+def test_organization_import_parser_rejects_missing_custom_subject_marks():
+    upload = UploadFixture(
+        "class.csv",
+        b"roll_number,name,math,science,english\n501,Tenant Student,91,92,93\n",
+    )
+    records, error = student_app._read_organization_student_file(
+        upload, [(1, "Math"), (2, "Science"), (3, "English"), (8, "Computer")]
+    )
+    assert records is None
+    assert "Computer" in error
+
+
+def test_organization_import_parser_rejects_custom_subject_marks_over_100():
+    upload = UploadFixture(
+        "class.csv",
+        b"roll_number,name,math,science,english,computer\n501,Tenant Student,91,92,93,101\n",
+    )
+    records, error = student_app._read_organization_student_file(
+        upload, [(1, "Math"), (2, "Science"), (3, "English"), (8, "Computer")]
+    )
+    assert records is None
+    assert "between 0 and 100" in error

@@ -796,3 +796,9 @@ def test_organization_settings_and_admin_data_tools_are_separate(client):
     for route in ("/settings", "/system/organization-requests"):
         response = client.get(route)
         assert response.status_code == 302
+
+
+def test_organization_result_pdf_requires_organization_login(client):
+    response = client.get("/organization/students/501/result.pdf")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")

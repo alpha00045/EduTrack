@@ -11,6 +11,7 @@
       <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:112px;height:112px"><i class="bi bi-person-fill fs-1"></i></div>
       {% endif %}
       <div class="flex-grow-1"><span class="badge text-bg-primary mb-2">Student profile</span><h1 class="h3 fw-bold mb-1">{{ student.name }}</h1><div class="text-muted">Roll number: {{ student.roll }}</div><div class="text-muted small">Current average: {{ student.average }}%</div></div>
+      <a class="btn btn-outline-primary" href="{{ url_for('organization_edit_student',roll=student.roll) }}">Edit marks</a>
       <a class="btn btn-primary" href="{{ url_for('organization_edit_student_profile',roll=student.roll) }}"><i class="bi bi-pencil me-1"></i>Edit full profile</a>
     </div>
     <hr>
@@ -28,6 +29,7 @@
     <div class="row g-3">{% for subject,mark in [('Math',student.math),('Science',student.science),('English',student.english)] %}<div class="col-md-4"><div class="p-3 rounded border"><div class="text-muted">{{ subject }}</div><div class="h3 text-primary mb-0">{{ mark }}%</div></div></div>{% endfor %}</div>
     {% if student.notes %}<hr><h2 class="h6 fw-bold">Notes</h2><p class="mb-0">{{ student.notes }}</p>{% endif %}
   </section>
+  <form method="POST" action="{{ url_for('organization_delete_student',roll=student.roll) }}" class="mt-3" onsubmit="return confirm('Delete this student and all related records?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete student</button></form>
   <section class="card border-0 shadow-sm p-4 mt-4">
     <h2 class="h5 fw-bold">Academic history</h2>
     <p class="text-muted small">Add marks for each standard, academic year, term and subject. Earlier records remain saved.</p>

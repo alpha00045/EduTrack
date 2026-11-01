@@ -168,7 +168,13 @@ def validate_student_form(form, include_roll=True):
     if not name or len(name) > 100:
         return None, "Student name is required and must be 100 characters or fewer."
 
-    data = {"name": name, "standard": form.get("standard", "").strip()[:40] or None, "semester": form.get("semester", "").strip()[:20] or None}
+    data = {"name": name}
+    standard = form.get("standard", "").strip()[:40]
+    semester = form.get("semester", "").strip()[:20]
+    if standard:
+        data["standard"] = standard
+    if semester:
+        data["semester"] = semester
     if include_roll:
         try:
             roll = int(form.get("roll", ""))
@@ -316,7 +322,7 @@ def view_students():
             where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
             cur.execute("SELECT COUNT(*) FROM students"+where,tuple(params)); total=cur.fetchone()[0]
             pages=max(1,(total+19)//20); page=min(page,pages); offset=(page-1)*20
-            cur.execute(f"SELECT roll_number,name,math,science,english,standard,semester,NULL::TEXT FROM students{where} ORDER BY {order} LIMIT 20 OFFSET %s",tuple(params+[offset]))
+            cur.execute(f"SELECT roll_number,name,math,science,english,standard,semester,NULL::TEXT FROM students{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
         else:
             order = {"roll":"s.roll_number ASC","name":"LOWER(s.name) ASC","average":"((COALESCE(s.math,0)+COALESCE(s.science,0)+COALESCE(s.english,0))/3.0) DESC"}.get(sort,"s.roll_number ASC")
             clauses=[]; params=[]
@@ -369,8 +375,8 @@ def add_student():
                     student_form["math"],
                     student_form["science"],
                     student_form["english"],
-                    student_form["standard"],
-                    student_form["semester"]
+                    student_form.get("standard"),
+                    student_form.get("semester")
                 )
             )
 

@@ -800,7 +800,7 @@ def test_organization_settings_and_admin_data_tools_are_separate(client):
         assert response.status_code == 302
 
 
-def test_organization_settings_menu_links_to_grading_and_subject_sections(client):
+def test_organization_settings_uses_section_navigation_without_more_menu(client):
     with client.session_transaction() as session:
         session["organization_id"] = 25
         session["organization_name"] = "Demo School"
@@ -808,12 +808,21 @@ def test_organization_settings_menu_links_to_grading_and_subject_sections(client
     response = client.get("/organization/settings")
 
     assert response.status_code == 200
-    assert b'href="#grading-settings"' in response.data
-    assert b'id="grading-settings"' in response.data
-    assert b'href="#manage-subjects"' in response.data
-    assert b'id="manage-subjects"' in response.data
+    assert b"Grading Settings" in response.data
+    assert b"Manage Subjects" in response.data
     assert b"Attendance" in response.data
     assert b"Analytics" in response.data
+    assert b"More organization options" not in response.data
+    assert b'name="active_section" value="grading"' in response.data
+
+    attendance_response = client.get("/organization/settings?section=attendance")
+    assert attendance_response.status_code == 200
+    assert b'name="active_section" value="attendance"' in attendance_response.data
+    assert b"Save attendance" in attendance_response.data
+
+    analytics_response = client.get("/organization/settings?section=analytics")
+    assert analytics_response.status_code == 200
+    assert b"Subject averages" in analytics_response.data
 
 
 def test_organization_result_pdf_requires_organization_login(client):

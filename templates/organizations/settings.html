@@ -1,41 +1,54 @@
 {% extends "layouts/base.html" %}
 {% block title %}Organization Settings | EduTrack{% endblock %}
 {% block content %}
-<main class="container py-4" style="max-width:820px">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div><a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2">Settings</h1></div>
-    <div class="dropdown">
-      <button class="btn btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-label="More organization options" title="More options"><i class="bi bi-three-dots-vertical"></i></button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="#grading-settings"><i class="bi bi-sliders me-2"></i>Grading Settings</a></li>
-        <li><a class="dropdown-item" href="#manage-subjects"><i class="bi bi-book me-2"></i>Manage Subjects</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="{{ url_for('organization_attendance') }}"><i class="bi bi-calendar-check me-2"></i>Attendance</a></li>
-        <li><a class="dropdown-item" href="{{ url_for('organization_analytics') }}"><i class="bi bi-graph-up me-2"></i>Analytics</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="{{ url_for('organization_export_csv') }}">Export CSV</a></li>
-        <li><a class="dropdown-item" href="{{ url_for('organization_export_excel') }}">Export Excel</a></li>
-        <li><a class="dropdown-item" href="{{ url_for('organization_download_backup') }}">Download backup</a></li>
-        <li><a class="dropdown-item" href="{{ url_for('organization_restore_backup') }}">Restore backup</a></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><form method="POST" action="{{ url_for('organization_logout') }}" class="m-0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="dropdown-item text-danger" type="submit">Sign out</button></form></li>
-      </ul>
-    </div>
+<main class="container py-4">
+  <div class="mb-4">
+    <a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a>
+    <h1 class="h2 fw-bold mt-2 mb-1">Settings</h1>
+    <p class="text-muted mb-0">Manage your organization's grading, subjects, attendance and analytics.</p>
   </div>
-  {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
-  <section id="grading-settings" class="card border-0 shadow-sm p-4 mb-4">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="d-flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Organization settings sections">
+    <a class="btn {% if active_section == 'grading' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+       href="{{ url_for('organization_settings', section='grading') }}" role="tab"
+       aria-selected="{{ 'true' if active_section == 'grading' else 'false' }}">Grading Settings</a>
+    <a class="btn {% if active_section == 'subjects' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+       href="{{ url_for('organization_settings', section='subjects') }}" role="tab"
+       aria-selected="{{ 'true' if active_section == 'subjects' else 'false' }}">Manage Subjects</a>
+    <a class="btn {% if active_section == 'attendance' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+       href="{{ url_for('organization_settings', section='attendance') }}" role="tab"
+       aria-selected="{{ 'true' if active_section == 'attendance' else 'false' }}">Attendance</a>
+    <a class="btn {% if active_section == 'analytics' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+       href="{{ url_for('organization_settings', section='analytics') }}" role="tab"
+       aria-selected="{{ 'true' if active_section == 'analytics' else 'false' }}">Analytics</a>
+  </div>
+
+  {% if active_section == 'grading' %}
+  <section class="card border-0 shadow-sm p-4">
     <h2 class="h5 fw-bold">Grading Settings</h2>
-    <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="save_settings">
+    <p class="text-muted">Set the minimum marks required to pass.</p>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_settings">
+      <input type="hidden" name="active_section" value="grading">
       <label class="form-label fw-semibold" for="passMark">Pass mark (%)</label>
       <input class="form-control mb-2" id="passMark" name="pass_mark" type="number" min="0" max="100" value="{{ pass_mark }}" required>
       <p class="form-text">This setting applies only to your organization's student grading.</p>
       <button class="btn btn-primary">Save settings</button>
     </form>
   </section>
-  <section id="manage-subjects" class="card border-0 shadow-sm p-4">
+  {% elif active_section == 'subjects' %}
+  <section class="card border-0 shadow-sm p-4">
     <h2 class="h5 fw-bold">Manage Subjects</h2>
     <p class="text-muted">Add the subjects taught by your organization. New subjects appear in Add Student, Edit Student and student marks.</p>
-    <form method="POST" class="row g-2 mb-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_subject">
+    <form method="POST" class="row g-2 mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_subject">
+      <input type="hidden" name="active_section" value="subjects">
       <div class="col"><label class="visually-hidden" for="subjectName">Subject name</label><input class="form-control" id="subjectName" name="subject_name" maxlength="80" placeholder="Enter a subject name" required></div>
       <div class="col-auto"><button class="btn btn-primary">Add subject</button></div>
     </form>
@@ -44,10 +57,93 @@
       <div class="list-group-item d-flex justify-content-between align-items-center">
         <span>{{ subject_name }}</span>
         {% if subject_name|lower not in ['math','science','english'] %}
-        <form method="POST" onsubmit="return confirm('Remove this subject and its marks from all students?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete_subject"><input type="hidden" name="subject_id" value="{{ subject_id }}"><button class="btn btn-sm btn-outline-danger">Remove</button></form>
+        <form method="POST" onsubmit="return confirm('Remove this subject and its marks from all students?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="delete_subject">
+          <input type="hidden" name="active_section" value="subjects">
+          <input type="hidden" name="subject_id" value="{{ subject_id }}">
+          <button class="btn btn-sm btn-outline-danger">Remove</button>
+        </form>
         {% else %}<span class="badge text-bg-light">Default</span>{% endif %}
       </div>
+      {% else %}<p class="text-muted mb-0">No subjects found.</p>{% endfor %}
+    </div>
+  </section>
+  {% elif active_section == 'attendance' %}
+  <section class="card border-0 shadow-sm p-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+      <div><h2 class="h5 fw-bold mb-1">Attendance</h2><p class="text-muted mb-0">Mark and review attendance for each day.</p></div>
+      <form method="GET" action="{{ url_for('organization_settings') }}" class="d-flex gap-2 align-items-end">
+        <input type="hidden" name="section" value="attendance">
+        <div><label class="form-label small" for="attendanceDate">Date</label><input class="form-control" type="date" id="attendanceDate" name="attendance_date" value="{{ attendance_date }}"></div>
+        <button class="btn btn-outline-primary">View</button>
+      </form>
+    </div>
+    <div class="row g-3 mb-4">
+      {% for label,value in [('Students',attendance_total),('Present',attendance_counts.present),('Absent',attendance_counts.absent),('Late',attendance_counts.late),('Unmarked',attendance_unmarked)] %}
+      <div class="col-6 col-md"><div class="border rounded p-3 h-100"><div class="small text-muted">{{ label }}</div><div class="h3 fw-bold mb-0">{{ value }}</div></div></div>
       {% endfor %}
+    </div>
+    <h3 class="h6 fw-bold">Class register</h3>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_attendance">
+      <input type="hidden" name="active_section" value="attendance">
+      <input type="hidden" name="attendance_date" value="{{ attendance_date }}">
+      <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Roll</th><th>Student</th><th>Status</th></tr></thead><tbody>
+        {% for student in attendance_students %}
+        <tr><td>{{ student.roll }}</td><td class="fw-semibold">{{ student.name }}</td><td>
+          <select class="form-select form-select-sm" name="status_{{ student.roll }}" aria-label="Attendance status for {{ student.name }}">
+            <option value="" {% if not student.status %}selected{% endif %}>Not marked</option>
+            <option value="present" {% if student.status == 'present' %}selected{% endif %}>Present</option>
+            <option value="absent" {% if student.status == 'absent' %}selected{% endif %}>Absent</option>
+            <option value="late" {% if student.status == 'late' %}selected{% endif %}>Late</option>
+          </select>
+        </td></tr>
+        {% else %}<tr><td colspan="3" class="text-center text-muted py-4">Add students before taking attendance.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+      {% if attendance_students %}<div class="text-end pt-3"><button class="btn btn-primary">Save attendance</button></div>{% endif %}
+    </form>
+  </section>
+  {% elif active_section == 'analytics' %}
+  <section>
+    <h2 class="h5 fw-bold mb-3">Analytics</h2>
+    <div class="row g-3 mb-4">
+      {% for label,value in [('Total students',analytics_summary[0]),('Average score',analytics_summary[1] ~ '%'),('Highest average',analytics_summary[2] ~ '%'),('Lowest average',analytics_summary[3] ~ '%')] %}
+      <div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm p-3 h-100"><div class="text-muted">{{ label }}</div><div class="display-6 fw-bold">{{ value }}</div></div></div>
+      {% endfor %}
+    </div>
+    <div class="card border-0 shadow-sm p-4 mb-4">
+      <h3 class="h6 fw-bold">Subject averages</h3>
+      {% for label,value in subject_averages %}
+      <div class="mb-3"><div class="d-flex justify-content-between"><span>{{ label }}</span><strong>{{ value }}%</strong></div><div class="progress"><div class="progress-bar" role="progressbar" style="width: {{ value }}%" aria-valuenow="{{ value }}" aria-valuemin="0" aria-valuemax="100"></div></div></div>
+      {% else %}<p class="text-muted mb-0">No subjects configured yet.</p>{% endfor %}
+    </div>
+    <div class="card border-0 shadow-sm p-4">
+      <h3 class="h6 fw-bold">Today's attendance</h3>
+      <div class="row g-3">
+        {% for key,label in [('present','Present'),('absent','Absent'),('late','Late')] %}
+        <div class="col-md-4"><div class="border rounded p-3"><div class="text-muted">{{ label }}</div><div class="h3 mb-0">{{ analytics_attendance_counts.get(key,0) }}</div></div></div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card border-0 shadow-sm p-4 mt-4">
+    <h2 class="h5 fw-bold mb-1">Organization Tools</h2>
+    <p class="text-muted mb-3">Export your data, manage backups, or sign out.</p>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-primary" href="/organization/export/csv">Export CSV</a>
+      <a class="btn btn-outline-primary" href="/organization/export/excel">Export Excel</a>
+      <a class="btn btn-outline-secondary" href="/organization/backup">Download backup</a>
+      <a class="btn btn-outline-secondary" href="/organization/restore">Restore backup</a>
+      <form method="POST" action="{{ url_for('organization_logout') }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-danger">Sign out</button>
+      </form>
     </div>
   </section>
 </main>

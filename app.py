@@ -2407,49 +2407,189 @@ def organization_analytics():
         subjects=subject_averages,attendance_counts=attendance_counts)
 
 
-@app.route("/organization/settings", methods=["GET","POST"])
+@app.route("/organization/settings", methods=["GET", "POST"])
 @organization_required
 def organization_settings():
-    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
+    oid = session["organization_id"]
+    allowed_sections = {"grading", "subjects", "attendance", "analytics"}
+    active_section = request.values.get("section", "grading")
+    if active_section not in allowed_sections:
+        active_section = "grading"
+
+    conn = get_db_connection()
+    cur = conn.cursor()
     try:
-        if request.method=="POST":
-            action=request.form.get("action","save_settings")
-            if action=="add_subject":
-                name=(request.form.get("subject_name") or "").strip()
-                if not name or len(name)>80:
-                    flash("Subject name must be between 1 and 80 characters.","danger")
+        if request.method == "POST":
+            action = request.form.get("action", "save_settings")
+            active_section = request.form.get("active_section", active_section)
+            if active_section not in allowed_sections:
+                active_section = "grading"
+
+            if action == "save_attendance":
+                selected_date = request.form.get("attendance_date", date.today().isoformat())
+                try:
+                    selected_date = date.fromisoformat(selected_date).isoformat()
+                except (TypeError, ValueError):
+                    flash("Select a valid attendance date.", "danger")
+                    return redirect(url_for("organization_settings", section="attendance"))
+
+                cur.execute(
+                    "SELECT id, roll_number FROM organization_students WHERE organization_id=%s",
+                    (oid,),
+                )
+                for student_id, roll in cur.fetchall():
+                    status = request.form.get(f"status_{roll}", "")
+                    if not status:
+                        continue
+                    if status not in {"present", "absent", "late"}:
+                        flash("Invalid attendance status.", "danger")
+                        return redirect(url_for(
+                            "organization_settings", section="attendance",
+                            attendance_date=selected_date,
+                        ))
+                    cur.execute(
+                        """INSERT INTO organization_attendance
+                        (organization_id,student_id,attendance_date,status)
+                        VALUES (%s,%s,%s,%s)
+                        ON CONFLICT (organization_id,student_id,attendance_date)
+                        DO UPDATE SET status=EXCLUDED.status,marked_at=CURRENT_TIMESTAMP""",
+                        (oid, student_id, selected_date, status),
+                    )
+                conn.commit()
+                flash("Attendance saved.", "success")
+                return redirect(url_for(
+                    "organization_settings", section="attendance",
+                    attendance_date=selected_date,
+                ))
+
+            if action == "add_subject":
+                name = (request.form.get("subject_name") or "").strip()
+                if not name or len(name) > 80:
+                    flash("Subject name must be between 1 and 80 characters.", "danger")
                 else:
                     try:
-                        cur.execute("INSERT INTO organization_subjects (organization_id,subject_name) VALUES (%s,%s)",(oid,name))
-                        conn.commit(); flash(f"{name} added to your subjects.","success")
+                        cur.execute(
+                            "INSERT INTO organization_subjects (organization_id,subject_name) VALUES (%s,%s)",
+                            (oid, name),
+                        )
+                        conn.commit()
+                        flash(f"{name} added to your subjects.", "success")
                     except psycopg2.errors.UniqueViolation:
-                        conn.rollback(); flash("That subject already exists.","warning")
-                return redirect(url_for("organization_settings"))
-            if action=="delete_subject":
-                try: subject_id=int(request.form.get("subject_id",""))
-                except (TypeError,ValueError): abort(400)
-                cur.execute("""DELETE FROM organization_subjects WHERE organization_id=%s AND id=%s
-                    AND LOWER(subject_name) NOT IN ('math','science','english')""",(oid,subject_id))
-                if cur.rowcount: conn.commit(); flash("Subject removed with its marks.","success")
-                else: conn.rollback(); flash("Default subjects cannot be removed.","warning")
-                return redirect(url_for("organization_settings"))
-            try: pass_mark=int(request.form.get("pass_mark","33"))
-            except (TypeError,ValueError): pass_mark=-1
-            if not 0<=pass_mark<=100:
-                flash("Pass mark must be between 0 and 100.","danger")
-                return redirect(url_for("organization_settings"))
-            cur.execute("""INSERT INTO organization_settings (organization_id,setting_key,setting_value)
-                VALUES (%s,'pass_mark',%s) ON CONFLICT (organization_id,setting_key)
-                DO UPDATE SET setting_value=EXCLUDED.setting_value,updated_at=CURRENT_TIMESTAMP""",(oid,str(pass_mark)))
-            conn.commit(); session["pass_mark"]=pass_mark; flash("Organization settings saved.","success")
-            return redirect(url_for("organization_settings"))
-        cur.execute("SELECT setting_value FROM organization_settings WHERE organization_id=%s AND setting_key='pass_mark'",(oid,))
-        row=cur.fetchone(); subjects=_organization_subjects(cur,oid)
-    finally:
-        cur.close(); conn.close()
-    pass_mark=int(row[0]) if row else 33; session["pass_mark"]=pass_mark
-    return render_template("organizations/settings.html",pass_mark=pass_mark,subjects=subjects)
+                        conn.rollback()
+                        flash("That subject already exists.", "warning")
+                return redirect(url_for("organization_settings", section="subjects"))
 
+            if action == "delete_subject":
+                try:
+                    subject_id = int(request.form.get("subject_id", ""))
+                except (TypeError, ValueError):
+                    abort(400)
+                cur.execute(
+                    """DELETE FROM organization_subjects WHERE organization_id=%s AND id=%s
+                    AND LOWER(subject_name) NOT IN ('math','science','english')""",
+                    (oid, subject_id),
+                )
+                if cur.rowcount:
+                    conn.commit()
+                    flash("Subject removed with its marks.", "success")
+                else:
+                    conn.rollback()
+                    flash("Default subjects cannot be removed.", "warning")
+                return redirect(url_for("organization_settings", section="subjects"))
+
+            try:
+                pass_mark = int(request.form.get("pass_mark", "33"))
+            except (TypeError, ValueError):
+                pass_mark = -1
+            if not 0 <= pass_mark <= 100:
+                flash("Pass mark must be between 0 and 100.", "danger")
+                return redirect(url_for("organization_settings", section="grading"))
+            cur.execute(
+                """INSERT INTO organization_settings (organization_id,setting_key,setting_value)
+                VALUES (%s,'pass_mark',%s) ON CONFLICT (organization_id,setting_key)
+                DO UPDATE SET setting_value=EXCLUDED.setting_value,updated_at=CURRENT_TIMESTAMP""",
+                (oid, str(pass_mark)),
+            )
+            conn.commit()
+            session["pass_mark"] = pass_mark
+            flash("Organization settings saved.", "success")
+            return redirect(url_for("organization_settings", section="grading"))
+
+        cur.execute(
+            "SELECT setting_value FROM organization_settings WHERE organization_id=%s AND setting_key='pass_mark'",
+            (oid,),
+        )
+        row = cur.fetchone()
+        subjects = _organization_subjects(cur, oid)
+
+        attendance_date = request.args.get("attendance_date", date.today().isoformat())
+        try:
+            attendance_date = date.fromisoformat(attendance_date).isoformat()
+        except (TypeError, ValueError):
+            attendance_date = date.today().isoformat()
+        cur.execute(
+            """SELECT s.roll_number,s.name,a.status
+            FROM organization_students s
+            LEFT JOIN organization_attendance a ON a.organization_id=s.organization_id
+              AND a.student_id=s.id AND a.attendance_date=%s
+            WHERE s.organization_id=%s ORDER BY s.roll_number""",
+            (attendance_date, oid),
+        )
+        attendance_rows = cur.fetchall()
+        attendance_students = [
+            {"roll": item[0], "name": item[1], "status": item[2]}
+            for item in attendance_rows
+        ]
+        attendance_counts = {
+            status: sum(student["status"] == status for student in attendance_students)
+            for status in ("present", "absent", "late")
+        }
+
+        cur.execute(
+            """SELECT COUNT(DISTINCT s.id),COALESCE(ROUND(AVG(m.marks),2),0),
+            COALESCE(MAX(avg_marks.avg),0),COALESCE(MIN(avg_marks.avg),0)
+            FROM organization_students s
+            LEFT JOIN organization_student_subject_marks m
+              ON m.organization_id=s.organization_id AND m.student_id=s.id
+            LEFT JOIN (
+              SELECT organization_id,student_id,AVG(marks) AS avg
+              FROM organization_student_subject_marks GROUP BY organization_id,student_id
+            ) avg_marks ON avg_marks.organization_id=s.organization_id
+              AND avg_marks.student_id=s.id
+            WHERE s.organization_id=%s""",
+            (oid,),
+        )
+        analytics_summary = cur.fetchone()
+        subject_averages = []
+        for subject_id, subject_name in subjects:
+            cur.execute(
+                """SELECT COALESCE(ROUND(AVG(marks),2),0)
+                FROM organization_student_subject_marks
+                WHERE organization_id=%s AND subject_id=%s""",
+                (oid, subject_id),
+            )
+            subject_averages.append((subject_name, cur.fetchone()[0]))
+        analytics_attendance_counts = attendance_counts
+    finally:
+        cur.close()
+        conn.close()
+
+    pass_mark = int(row[0]) if row else 33
+    session["pass_mark"] = pass_mark
+    return render_template(
+        "organizations/settings.html",
+        pass_mark=pass_mark,
+        subjects=subjects,
+        active_section=active_section,
+        attendance_date=attendance_date,
+        attendance_students=attendance_students,
+        attendance_counts=attendance_counts,
+        attendance_total=len(attendance_students),
+        attendance_unmarked=len(attendance_students) - sum(attendance_counts.values()),
+        analytics_summary=analytics_summary,
+        subject_averages=subject_averages,
+        analytics_attendance_counts=analytics_attendance_counts,
+    )
 
 @app.route("/organization/backup")
 @organization_required

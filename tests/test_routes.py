@@ -778,3 +778,22 @@ def test_organization_user_cannot_access_platform_admin_dashboard(client):
     response = client.get("/")
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/login")
+
+
+def test_organization_backup_and_restore_require_organization_login(client):
+    for route in ("/organization/backup", "/organization/restore"):
+        response = client.get(route)
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_organization_settings_and_admin_data_tools_are_separate(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+    for route in ("/organization/settings", "/organization/analytics", "/organization/attendance"):
+        response = client.get(route)
+        assert response.status_code == 200
+    for route in ("/admin/settings", "/system/organization-requests"):
+        response = client.get(route)
+        assert response.status_code == 302

@@ -337,7 +337,7 @@ def view_students():
     students=[]
     for r in rows:
         avg=calculate_average(r[2:5])
-        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"standard":r[5],"semester":r[6],"organization":r[7],"average":avg,"grade":calculate_grade(avg)})
+        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"standard":r[5] if len(r)>5 else None,"semester":r[6] if len(r)>6 else None,"organization":r[7] if len(r)>7 else None,"average":avg,"grade":calculate_grade(avg)})
     offset=(page-1)*20
     return render_template("students/view_students.html",students=students,search_query=q,sort_by=sort,page=page,per_page=20,total_students=total,total_pages=pages,start_index=offset+1 if total else 0,end_index=offset+len(students),organizations=organizations,selected_org=org,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 

@@ -2096,6 +2096,216 @@ def organization_add_assessment(roll):
     return redirect(url_for("organization_student_details", roll=roll))
 
 
+
+# Organization portal extensions. Every query is scoped by the active organization.
+@app.route("/organization/students/<path:roll>/edit", methods=["GET", "POST"])
+@organization_required
+def organization_edit_student(roll):
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s AND roll_number=%s""", (oid, roll))
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        if request.method == "POST":
+            form, error = validate_student_form(request.form, include_roll=False)
+            if error:
+                flash(error, "danger")
+                return redirect(url_for("organization_edit_student", roll=roll))
+            cur.execute("""UPDATE organization_students SET name=%s,math=%s,science=%s,english=%s,
+                           updated_at=CURRENT_TIMESTAMP WHERE organization_id=%s AND roll_number=%s""",
+                        (form["name"], form["math"], form["science"], form["english"], oid, roll))
+            conn.commit()
+            flash("Student record updated.", "success")
+            return redirect(url_for("organization_student_details", roll=roll))
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/edit_student.html",
+        student={"roll":row[0],"name":row[1],"math":row[2],"science":row[3],"english":row[4]})
+
+
+@app.route("/organization/students/<path:roll>/delete", methods=["POST"])
+@organization_required
+def organization_delete_student(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM organization_students WHERE organization_id=%s AND roll_number=%s",
+                    (session["organization_id"], roll))
+        if cur.rowcount == 0:
+            abort(404)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    flash("Student and related records deleted.", "success")
+    return redirect(url_for("organization_students"))
+
+
+@app.route("/organization/students/import", methods=["GET", "POST"])
+@organization_required
+def organization_import_students():
+    if request.method == "POST":
+        records, error = _read_uploaded_student_file(request.files.get("student_file"))
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("organization_import_students"))
+        oid = session["organization_id"]
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("""SELECT roll_number FROM organization_students
+                           WHERE organization_id=%s AND roll_number=ANY(%s)""",
+                        (oid, [str(item["roll"]) for item in records]))
+            existing = {str(row[0]) for row in cur.fetchall()}
+            duplicates = [str(item["roll"]) for item in records if str(item["roll"]) in existing]
+            if duplicates:
+                flash("Existing roll numbers in your organization: " + ", ".join(duplicates[:10]) +
+                      ". Nothing was imported.", "warning")
+                return redirect(url_for("organization_import_students"))
+            cur.executemany("""INSERT INTO organization_students
+                (organization_id,roll_number,name,math,science,english) VALUES (%s,%s,%s,%s,%s,%s)""",
+                [(oid,str(x["roll"]),x["name"],x["math"],x["science"],x["english"]) for x in records])
+            conn.commit()
+            flash(f"Imported {len(records)} students.", "success")
+            return redirect(url_for("organization_students"))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("students/import.html", organization_mode=True)
+
+
+@app.route("/organization/export/csv")
+@organization_required
+def organization_export_csv():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s ORDER BY roll_number""", (session["organization_id"],))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\r\n")
+    writer.writerow(["roll_number","name","math","science","english"])
+    for row in rows:
+        writer.writerow([row[0],safe_spreadsheet_text(row[1]),*row[2:]])
+    response = Response("\ufeff"+output.getvalue(), mimetype="text/csv; charset=utf-8")
+    response.headers["Content-Disposition"] = 'attachment; filename="organization-students.csv"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/organization/export/excel")
+@organization_required
+def organization_export_excel():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s ORDER BY roll_number""", (session["organization_id"],))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Students"
+    sheet.append(["Roll Number","Name","Math","Science","English","Average"])
+    for row in rows:
+        sheet.append([row[0],safe_spreadsheet_text(row[1]),*row[2:],calculate_average(row[2:])])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="244A73")
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    response = send_file(buffer, as_attachment=True, download_name="organization-students.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/organization/attendance", methods=["GET", "POST"])
+@organization_required
+def organization_attendance():
+    oid = session["organization_id"]
+    selected_date = request.values.get("attendance_date", date.today().isoformat())
+    try:
+        selected_date = date.fromisoformat(selected_date).isoformat()
+    except (TypeError, ValueError):
+        flash("Select a valid attendance date.", "danger")
+        return redirect(url_for("organization_attendance"))
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            cur.execute("SELECT id,roll_number FROM organization_students WHERE organization_id=%s", (oid,))
+            for student_id, roll in cur.fetchall():
+                status = request.form.get(f"status_{roll}", "")
+                if not status:
+                    continue
+                if status not in {"present","absent","late"}:
+                    flash("Invalid attendance status.", "danger")
+                    return redirect(url_for("organization_attendance", attendance_date=selected_date))
+                cur.execute("""INSERT INTO organization_attendance
+                    (organization_id,student_id,attendance_date,status) VALUES (%s,%s,%s,%s)
+                    ON CONFLICT (organization_id,student_id,attendance_date)
+                    DO UPDATE SET status=EXCLUDED.status,marked_at=CURRENT_TIMESTAMP""",
+                    (oid,student_id,selected_date,status))
+            conn.commit()
+            flash("Attendance saved.", "success")
+            return redirect(url_for("organization_attendance", attendance_date=selected_date))
+        cur.execute("""SELECT s.roll_number,s.name,a.status FROM organization_students s
+            LEFT JOIN organization_attendance a ON a.organization_id=s.organization_id
+            AND a.student_id=s.id AND a.attendance_date=%s
+            WHERE s.organization_id=%s ORDER BY s.roll_number""", (selected_date,oid))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    students = [{"roll":r[0],"name":r[1],"status":r[2]} for r in rows]
+    counts = {status:sum(x["status"]==status for x in students) for status in ("present","absent","late")}
+    return render_template("attendance/index.html", students=students, attendance_date=selected_date,
+        total=len(students),present=counts["present"],absent=counts["absent"],late=counts["late"],
+        unmarked=len(students)-sum(counts.values()),organization_mode=True)
+
+
+@app.route("/organization/analytics")
+@organization_required
+def organization_analytics():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT COUNT(*),COALESCE(ROUND(AVG((math+science+english)/3.0),2),0),
+            COALESCE(MAX((math+science+english)/3.0),0),COALESCE(MIN((math+science+english)/3.0),0)
+            FROM organization_students WHERE organization_id=%s""", (oid,))
+        summary = cur.fetchone()
+        cur.execute("""SELECT COALESCE(ROUND(AVG(math),2),0),COALESCE(ROUND(AVG(science),2),0),
+            COALESCE(ROUND(AVG(english),2),0) FROM organization_students WHERE organization_id=%s""", (oid,))
+        subjects = cur.fetchone()
+        cur.execute("""SELECT status,COUNT(*) FROM organization_attendance
+            WHERE organization_id=%s AND attendance_date=CURRENT_DATE GROUP BY status""", (oid,))
+        attendance_counts = dict(cur.fetchall())
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/analytics.html", summary=summary,
+        subjects=subjects, attendance_counts=attendance_counts)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
     

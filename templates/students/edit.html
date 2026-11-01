@@ -68,6 +68,10 @@
 
                         </div>
 
+<div class="row g-3 mb-3">
+<div class="col-md-6"><label class="form-label">Class / Standard</label><input class="form-control" name="standard" maxlength="40" placeholder="e.g. Class 10" value="{{ student.standard if student is defined else '' }}"></div>
+<div class="col-md-6"><label class="form-label">Semester</label><select class="form-select" name="semester"><option value="">Select semester</option>{% for n in range(1, 9) %}<option value="{{ n }}" {% if student is defined and student.semester|string == n|string %}selected{% endif %}>Semester {{ n }}</option>{% endfor %}</select></div>
+</div>
                         <div class="row">
 
                             <div class="col-md-4">

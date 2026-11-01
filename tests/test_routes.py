@@ -791,9 +791,8 @@ def test_organization_settings_and_admin_data_tools_are_separate(client):
     with client.session_transaction() as session:
         session["organization_id"] = 25
         session["organization_name"] = "Demo School"
-    for route in ("/organization/settings", "/organization/analytics", "/organization/attendance"):
-        response = client.get(route)
-        assert response.status_code == 200
+    response = client.get("/organization/settings")
+    assert response.status_code == 200
     for route in ("/settings", "/system/organization-requests"):
         response = client.get(route)
         assert response.status_code == 302

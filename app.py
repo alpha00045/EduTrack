@@ -2538,6 +2538,56 @@ def organization_restore_backup():
     return render_template("organizations/restore.html")
 
 
+
+@app.route("/organization/students/<path:roll>/result.pdf")
+@organization_required
+def organization_download_student_result(roll):
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english
+            FROM organization_students WHERE organization_id=%s AND roll_number=%s""", (oid,roll))
+        student = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not student:
+        abort(404)
+    average = calculate_average(student[2:5])
+    grade = calculate_grade(average)
+    styles = getSampleStyleSheet()
+    buffer = BytesIO()
+    document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=48, leftMargin=48,
+        topMargin=48, bottomMargin=48, title=f"EduTrack Result - {student[0]}")
+    story = [
+        Paragraph("EduTrack Student Result Card", styles["Title"]),
+        Spacer(1, 12),
+        Paragraph(f"<b>Student Name:</b> {escape(str(student[1]))}", styles["BodyText"]),
+        Paragraph(f"<b>Roll Number:</b> {escape(str(student[0]))}", styles["BodyText"]),
+        Spacer(1, 18),
+    ]
+    result_rows = [["Subject", "Marks"]]
+    for subject, mark in zip(("Math", "Science", "English"), student[2:5]):
+        result_rows.append([subject, str(mark)])
+    result_rows.extend([["Average", f"{average}%"], ["Grade", grade]])
+    table = Table(result_rows, colWidths=[240, 180])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#244A73")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D7DEE8")),
+        ("PADDING", (0, 0), (-1, -1), 9),
+    ]))
+    story.append(table)
+    document.build(story)
+    buffer.seek(0)
+    response = send_file(buffer, as_attachment=True,
+        download_name=f"student-result-{student[0]}.pdf", mimetype="application/pdf")
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 if __name__ == "__main__":
     app.run(debug=True)
     

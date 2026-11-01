@@ -2348,6 +2348,196 @@ def organization_settings():
     return render_template("organizations/settings.html", pass_mark=pass_mark)
 
 
+
+@app.route("/organization/backup")
+@organization_required
+def organization_download_backup():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT id,roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s ORDER BY roll_number""", (oid,))
+        students = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,p.date_of_birth,p.gender,p.email,p.phone,p.guardian_name,
+            p.guardian_phone,p.address,p.admission_number,p.joining_date,p.admission_standard,
+            p.notes,p.photo_data,p.photo_mime
+            FROM organization_student_profiles p JOIN organization_students s
+              ON s.organization_id=p.organization_id AND s.id=p.student_id
+            WHERE p.organization_id=%s ORDER BY s.roll_number""", (oid,))
+        profiles = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,a.academic_year,a.standard,a.term,a.subject,
+            a.marks_obtained,a.maximum_marks FROM organization_student_assessments a
+            JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
+            WHERE a.organization_id=%s ORDER BY s.roll_number,a.academic_year,a.term,a.subject""", (oid,))
+        assessments = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,a.attendance_date,a.status FROM organization_attendance a
+            JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
+            WHERE a.organization_id=%s ORDER BY a.attendance_date,s.roll_number""", (oid,))
+        attendance_rows = cur.fetchall()
+        cur.execute("""SELECT setting_key,setting_value FROM organization_settings
+                       WHERE organization_id=%s ORDER BY setting_key""", (oid,))
+        settings = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        def add_csv(filename, headers, rows, transform=None):
+            output = StringIO(newline="")
+            writer = csv.writer(output, lineterminator="\\r\\n")
+            writer.writerow(headers)
+            for row in rows:
+                values = list(row)
+                if transform:
+                    values = transform(values)
+                writer.writerow(values)
+            archive.writestr(filename, "\\ufeff" + output.getvalue())
+
+        add_csv("students.csv", ["roll_number","name","math","science","english"],
+            [row[1:] for row in students],
+            lambda row: [row[0],safe_spreadsheet_text(row[1]),*row[2:]])
+        def profile_export(row):
+            if row[12] is not None:
+                row[12] = base64.b64encode(bytes(row[12])).decode("ascii")
+            for index in (1, 9):
+                if row[index] is not None:
+                    row[index] = row[index].isoformat()
+            return row
+        add_csv("profiles.csv", ["roll_number","date_of_birth","gender","email","phone",
+            "guardian_name","guardian_phone","address","admission_number","joining_date",
+            "admission_standard","notes","photo_base64","photo_mime"], profiles, profile_export)
+        add_csv("assessments.csv", ["roll_number","academic_year","standard","term","subject",
+            "marks_obtained","maximum_marks"], assessments)
+        add_csv("attendance.csv", ["roll_number","attendance_date","status"], attendance_rows,
+            lambda row: [row[0],row[1].isoformat(),row[2]])
+        add_csv("settings.csv", ["setting_key","setting_value"], settings)
+        archive.writestr("BACKUP_README.txt",
+            "EduTrack organization backup. Restore is add-only: existing student, profile, assessment, attendance and settings records are not overwritten.")
+    buffer.seek(0)
+    response = send_file(buffer, as_attachment=True,
+        download_name="edutrack-organization-backup.zip", mimetype="application/zip", max_age=0)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@app.route("/organization/restore", methods=["GET", "POST"])
+@organization_required
+def organization_restore_backup():
+    if request.method == "POST":
+        upload = request.files.get("backup_file")
+        if not upload or not upload.filename or not upload.filename.lower().endswith(".zip"):
+            flash("Choose an EduTrack organization backup ZIP file.", "danger")
+            return redirect(url_for("organization_restore_backup"))
+        raw = upload.read(10 * 1024 * 1024 + 1)
+        if len(raw) > 10 * 1024 * 1024:
+            flash("Backup is too large. Maximum size is 10 MB.", "danger")
+            return redirect(url_for("organization_restore_backup"))
+        conn = get_db_connection()
+        cur = conn.cursor()
+        oid = session["organization_id"]
+        try:
+            with zipfile.ZipFile(BytesIO(raw)) as archive:
+                allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv","BACKUP_README.txt"}
+                names = archive.namelist()
+                if (len(names) != len(set(names)) or any(name not in allowed for name in names)
+                    or "students.csv" not in names
+                    or sum(item.file_size for item in archive.infolist()) > 25 * 1024 * 1024
+                    or any(item.file_size > 10 * 1024 * 1024 for item in archive.infolist())):
+                    raise ValueError("Unrecognised backup archive")
+                def read_rows(name):
+                    if name not in names:
+                        return []
+                    return list(csv.DictReader(StringIO(archive.read(name).decode("utf-8-sig"))))
+                student_rows = read_rows("students.csv")
+                validated = []
+                for index, item in enumerate(student_rows, start=2):
+                    data, error = validate_student_form({
+                        "roll":item.get("roll_number",""), "name":item.get("name",""),
+                        "math":item.get("math",""), "science":item.get("science",""),
+                        "english":item.get("english","")})
+                    if error:
+                        raise ValueError(f"students.csv row {index}: {error}")
+                    validated.append(data)
+                rolls = [str(item["roll"]) for item in validated]
+                if len(rolls) != len(set(rolls)):
+                    raise ValueError("Backup contains duplicate roll numbers")
+                cur.executemany("""INSERT INTO organization_students
+                    (organization_id,roll_number,name,math,science,english)
+                    VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (organization_id,roll_number) DO NOTHING""",
+                    [(oid,str(x["roll"]),x["name"],x["math"],x["science"],x["english"]) for x in validated])
+                restored_students = cur.rowcount
+                cur.execute("SELECT id,roll_number FROM organization_students WHERE organization_id=%s", (oid,))
+                student_ids = {str(roll):student_id for student_id,roll in cur.fetchall()}
+                for item in read_rows("profiles.csv"):
+                    roll = str(item.get("roll_number",""))
+                    if roll not in student_ids:
+                        continue
+                    photo = base64.b64decode(item["photo_base64"], validate=True) if item.get("photo_base64") else None
+                    mime = item.get("photo_mime") or None
+                    valid_photo = (not photo or
+                        (mime == "image/jpeg" and photo.startswith(b"\\xff\\xd8\\xff")) or
+                        (mime == "image/png" and photo.startswith(b"\\x89PNG\\r\\n\\x1a\\n")) or
+                        (mime == "image/webp" and len(photo)>12 and photo[:4]==b"RIFF" and photo[8:12]==b"WEBP"))
+                    if not valid_photo or (photo and len(photo)>1024*1024) or (not photo and mime):
+                        raise ValueError("Invalid profile photo in backup")
+                    cur.execute("""INSERT INTO organization_student_profiles
+                        (organization_id,student_id,date_of_birth,gender,email,phone,guardian_name,
+                         guardian_phone,address,admission_number,joining_date,admission_standard,notes,
+                         photo_data,photo_mime)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (organization_id,student_id) DO NOTHING""",
+                        (oid,student_ids[roll],item.get("date_of_birth") or None,item.get("gender") or None,
+                         item.get("email") or None,item.get("phone") or None,item.get("guardian_name") or None,
+                         item.get("guardian_phone") or None,item.get("address") or None,
+                         item.get("admission_number") or None,item.get("joining_date") or None,
+                         item.get("admission_standard") or None,item.get("notes") or None,
+                         psycopg2.Binary(photo) if photo else None,mime))
+                for item in read_rows("assessments.csv"):
+                    roll = str(item.get("roll_number",""))
+                    if roll not in student_ids:
+                        continue
+                    marks = float(item["marks_obtained"]); maximum = float(item["maximum_marks"])
+                    if not (0 <= marks <= maximum and maximum > 0):
+                        raise ValueError("Invalid assessment marks in backup")
+                    cur.execute("""INSERT INTO organization_student_assessments
+                        (organization_id,student_id,academic_year,standard,term,subject,marks_obtained,maximum_marks)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (oid,student_ids[roll],item["academic_year"],item["standard"],item["term"],
+                         item["subject"],marks,maximum))
+                for item in read_rows("attendance.csv"):
+                    roll = str(item.get("roll_number",""))
+                    status = item.get("status","")
+                    if roll not in student_ids or status not in {"present","absent","late"}:
+                        raise ValueError("Invalid attendance record in backup")
+                    cur.execute("""INSERT INTO organization_attendance
+                        (organization_id,student_id,attendance_date,status)
+                        VALUES (%s,%s,%s,%s) ON CONFLICT (organization_id,student_id,attendance_date) DO NOTHING""",
+                        (oid,student_ids[roll],item["attendance_date"],status))
+                for item in read_rows("settings.csv"):
+                    if item.get("setting_key") == "pass_mark":
+                        mark = int(item.get("setting_value",""))
+                        if 0 <= mark <= 100:
+                            cur.execute("""INSERT INTO organization_settings (organization_id,setting_key,setting_value)
+                                VALUES (%s,'pass_mark',%s) ON CONFLICT (organization_id,setting_key) DO NOTHING""",
+                                (oid,str(mark)))
+            conn.commit()
+            flash(f"Restore complete: {restored_students} new students added. Existing organization records were preserved.", "success")
+            return redirect(url_for("organization_students"))
+        except (zipfile.BadZipFile, KeyError, ValueError, UnicodeDecodeError, TypeError):
+            conn.rollback()
+            flash("The backup is damaged or contains invalid data. No changes were saved.", "danger")
+            return redirect(url_for("organization_restore_backup"))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("organizations/restore.html")
+
+
 if __name__ == "__main__":
     app.run(debug=True)
     

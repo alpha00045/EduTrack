@@ -307,7 +307,7 @@ def view_students():
     except (TypeError,ValueError): page=1
     conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute("SELECT id,name FROM organizations WHERE status='approved' ORDER BY name")
+        cur.execute("SELECT id,organization_name FROM organizations WHERE status='approved' ORDER BY organization_name")
         organizations=cur.fetchall()
         cur.execute("SELECT standard FROM students WHERE standard IS NOT NULL AND standard<>'' UNION SELECT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY 1")
         standards=[x[0] for x in cur.fetchall()]
@@ -875,7 +875,7 @@ def analytics():
     semester=request.args.get("semester","").strip()[:20]
     conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute("SELECT id,name FROM organizations WHERE status='approved' ORDER BY name")
+        cur.execute("SELECT id,organization_name FROM organizations WHERE status='approved' ORDER BY organization_name")
         organizations=cur.fetchall()
         cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard")
         standards=[x[0] for x in cur.fetchall()]

@@ -578,3 +578,227 @@ def test_configurable_pass_mark_changes_grade_in_request_context(client):
         request_session["pass_mark"] = 40
         assert student_app.calculate_grade(39) == "F"
         assert student_app.calculate_grade(40) == "C2"
+
+
+def test_organization_registration_starts_pending(client, monkeypatch):
+    connection = FakeConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/register-organization",
+        data={
+            "organization_name": "Sample Public School",
+            "organization_type": "School",
+            "registration_number": "SCH-2026-001",
+            "contact_person": "Asha Das",
+            "email": "office@example.edu",
+            "phone": "+91 9876543210",
+            "address": "Bhubaneswar, Odisha",
+            "password": "a-strong-test-password",
+            "confirm_password": "a-strong-test-password",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Registration submitted successfully" in response.data
+    assert "INSERT INTO organizations" in connection.fake_cursor.executed[0][0]
+    assert connection.committed is True
+
+
+def test_organization_registration_rejects_short_password(client):
+    response = client.post(
+        "/register-organization",
+        data={
+            "organization_name": "Sample Public School",
+            "organization_type": "School",
+            "contact_person": "Asha Das",
+            "email": "office@example.edu",
+            "phone": "+91 9876543210",
+            "address": "Bhubaneswar, Odisha",
+            "password": "short",
+            "confirm_password": "short",
+        },
+    )
+    assert response.status_code == 400
+    assert b"at least 12 characters" in response.data
+
+
+def test_organization_registration_page_is_public(client):
+    response = client.get("/register-organization")
+    assert response.status_code == 200
+    assert b"Register your organization" in response.data
+    assert b"organization_name" in response.data
+
+
+def test_organization_requests_require_platform_admin(client):
+    response = client.get("/system/organization-requests")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_platform_admin_can_review_organization_applications(client, monkeypatch):
+    login_as_admin(client)
+    row = (
+        1, "Sample School", "School", "SCH-001", "Asha Das",
+        "office@example.edu", "+91 9876543210", "Bhubaneswar",
+        "pending", None,
+    )
+    connection = FakeConnection(rows=[row])
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.get("/system/organization-requests")
+    assert response.status_code == 200
+    assert b"Sample School" in response.data
+    assert b"Approve" in response.data
+
+
+def test_platform_admin_approval_updates_only_pending_application(client, monkeypatch):
+    login_as_admin(client)
+    connection = FakeConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/system/organization-requests/7/approve",
+    )
+    assert response.status_code == 302
+    query, params = connection.fake_cursor.executed[0]
+    assert "status='approved'" in query
+    assert "status='pending'" in query
+    assert params[1] == 7
+    assert connection.committed is True
+
+def test_organization_login_page_is_public(client):
+    response = client.get("/organization/login")
+    assert response.status_code == 200
+    assert b"Organization sign in" in response.data
+
+
+def test_organization_student_pages_require_organization_login(client):
+    response = client.get("/organization/students")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_pending_organization_cannot_sign_in(client, monkeypatch):
+    connection = FakeConnection(one=(
+        17, "Pending School",
+        student_app.generate_password_hash("a-strong-test-password"),
+        "pending", None,
+    ))
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/organization/login",
+        data={"email": "pending@example.edu", "password": "a-strong-test-password"},
+    )
+    assert response.status_code == 200
+    assert b"awaiting verification" in response.data
+    with client.session_transaction() as session:
+        assert "organization_id" not in session
+
+
+def test_approved_organization_can_sign_in(client, monkeypatch):
+    connection = FakeConnection(one=(
+        17, "Approved School",
+        student_app.generate_password_hash("a-strong-test-password"),
+        "approved", None,
+    ))
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/organization/login",
+        data={"email": "approved@example.edu", "password": "a-strong-test-password"},
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization")
+    with client.session_transaction() as session:
+        assert session["organization_id"] == 17
+        assert session["organization_name"] == "Approved School"
+
+
+def test_organization_add_student_scopes_insert_to_current_organization(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+        session["organization_name"] = "Tenant School"
+    connection = FakeConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.post(
+        "/organization/students/add",
+        data={
+            "roll": "501", "name": "Tenant Student",
+            "math": "91", "science": "92", "english": "93",
+        },
+    )
+    assert response.status_code == 302
+    query, params = connection.fake_cursor.executed[0]
+    assert "INSERT INTO organization_students" in query
+    assert params[0] == 23
+    assert connection.committed is True
+
+
+def test_organization_student_details_query_is_scoped_to_tenant(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+    row = ("501", "Tenant Student", 91, 92, 93, None)
+    connection = FakeConnection(rows=[], one=row)
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+    response = client.get("/organization/students/501")
+    assert response.status_code == 200
+    query, params = connection.fake_cursor.executed[0]
+    normalized_query = " ".join(query.split())
+    assert "WHERE s.organization_id=%s AND s.roll_number=%s" in normalized_query
+    assert params == (23, "501")
+
+
+def test_organization_portal_routes_require_organization_login(client):
+    protected_routes = [
+        "/organization",
+        "/organization/students",
+        "/organization/students/import",
+        "/organization/export/csv",
+        "/organization/export/excel",
+        "/organization/attendance",
+        "/organization/analytics",
+        "/organization/settings",
+    ]
+    for route in protected_routes:
+        response = client.get(route)
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_organization_user_cannot_access_platform_organization_management(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+    response = client.get("/system/organization-requests")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_organization_user_cannot_access_platform_admin_dashboard(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+    response = client.get("/")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_organization_backup_and_restore_require_organization_login(client):
+    for route in ("/organization/backup", "/organization/restore"):
+        response = client.get(route)
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_organization_settings_and_admin_data_tools_are_separate(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+    response = client.get("/organization/settings")
+    assert response.status_code == 200
+    for route in ("/settings", "/system/organization-requests"):
+        response = client.get(route)
+        assert response.status_code == 302
+
+
+def test_organization_result_pdf_requires_organization_login(client):
+    response = client.get("/organization/students/501/result.pdf")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")

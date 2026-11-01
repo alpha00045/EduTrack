@@ -1,7 +1,7 @@
 <!-- Navbar Starts -->
 <nav class="navbar navbar-expand-lg navbar-dark app-navbar">
     <div class="container">
-        <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">🎓 {{ session.get("school_name", "EduTrack") }}</a>
+        <a class="navbar-brand fw-bold" href="{{ url_for('organization_dashboard') if session.get('organization_id') else url_for('index') }}">🎓 {{ session.get('organization_name', session.get('school_name', 'EduTrack')) }}</a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
             data-bs-target="#navbarNav" aria-controls="navbarNav"
@@ -18,7 +18,21 @@
                         <span class="d-lg-none ms-2">Appearance</span>
                     </button>
                 </li>
-                {% if session.get("admin") %}
+                {% if session.get("organization_id") %}
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_dashboard') }}">Dashboard</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_students') }}">Students</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_import_students') }}">Bulk Import</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_attendance') }}">Attendance</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_analytics') }}">Analytics</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_settings') }}">Settings</a></li>
+<li class="nav-item dropdown"><a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Data</a><ul class="dropdown-menu">
+<li><a class="dropdown-item" href="{{ url_for('organization_export_csv') }}">Export CSV</a></li>
+<li><a class="dropdown-item" href="{{ url_for('organization_export_excel') }}">Export Excel</a></li>
+<li><a class="dropdown-item" href="{{ url_for('organization_download_backup') }}">Download backup</a></li>
+<li><a class="dropdown-item" href="{{ url_for('organization_restore_backup') }}">Restore backup</a></li>
+</ul></li>
+<li class="nav-item"><form method="POST" action="{{ url_for('organization_logout') }}" class="m-0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="nav-link btn btn-link" type="submit">Sign out</button></form></li>
+{% elif session.get("admin") %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>
                 </li>
@@ -56,6 +70,9 @@
                     </ul>
                 </li>
 
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('organization_requests') }}"><i class="bi bi-building-check"></i> Organizations</a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('admin_settings') }}"><i class="bi bi-gear"></i> Settings</a>
                 </li>

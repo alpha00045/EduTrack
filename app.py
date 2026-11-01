@@ -20,9 +20,15 @@ import csv
 import hmac
 import base64
 import zipfile
+from datetime import datetime
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+import re
 import psycopg2
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf.csrf import CSRFProtect
 
 from openpyxl import Workbook, load_workbook
@@ -1534,6 +1540,1060 @@ def logout():
     flash("Logged out successfully!", "success")
 
     return redirect("/")
+
+
+
+# ---------------------------------------------------------------------------
+# Organization registration and platform-admin verification
+# ---------------------------------------------------------------------------
+
+@app.route("/register-organization", methods=["GET", "POST"])
+def register_organization():
+    """Accept organization applications; access remains blocked until approval."""
+    if request.method == "POST":
+        organization_name = request.form.get("organization_name", "").strip()
+        organization_type = request.form.get("organization_type", "").strip()
+        registration_number = request.form.get("registration_number", "").strip() or None
+        contact_person = request.form.get("contact_person", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        address = request.form.get("address", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        allowed_types = {"School", "College", "University", "Coaching Institute", "Other"}
+        errors = []
+        if not organization_name or len(organization_name) > 150:
+            errors.append("Enter an organization name (up to 150 characters).")
+        if organization_type not in allowed_types:
+            errors.append("Choose a valid organization type.")
+        if not contact_person or len(contact_person) > 120:
+            errors.append("Enter the authorized contact person's name.")
+        if not re.fullmatch(r"[^@\s]{1,64}@[^@\s.]+(?:\.[^@\s.]+)+", email) or len(email) > 254:
+            errors.append("Enter a valid email address.")
+        if not re.fullmatch(r"[0-9+() .-]{7,25}", phone):
+            errors.append("Enter a valid contact phone number.")
+        if not address or len(address) > 500:
+            errors.append("Enter the organization address (up to 500 characters).")
+        if registration_number and len(registration_number) > 80:
+            errors.append("Registration number must be 80 characters or fewer.")
+        if len(password) < 12:
+            errors.append("Password must contain at least 12 characters.")
+        if password != confirm_password:
+            errors.append("The password confirmation does not match.")
+
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+            return render_template("organizations/register.html", form=request.form), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """INSERT INTO organizations
+                   (organization_name, organization_type, registration_number,
+                    contact_person, email, phone, address, password_hash, status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'pending')""",
+                (
+                    organization_name, organization_type, registration_number,
+                    contact_person, email, phone, address,
+                    generate_password_hash(password),
+                ),
+            )
+            conn.commit()
+            flash(
+                "Registration submitted successfully. Your organization is pending verification. "
+                "You will be able to access EduTrack after the system administrator approves it.",
+                "success",
+            )
+            return redirect(url_for("login"))
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            flash("An organization is already registered with this email or registration number.", "danger")
+            return render_template("organizations/register.html", form=request.form), 409
+        finally:
+            cur.close()
+            conn.close()
+
+    return render_template("organizations/register.html", form={})
+
+
+@app.route("/system/organization-requests")
+@admin_required
+def organization_requests():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id, organization_name, organization_type, registration_number,
+                      contact_person, email, phone, address, status, created_at
+               FROM organizations
+               ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, created_at DESC"""
+        )
+        requests_list = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/requests.html", requests=requests_list)
+
+
+@app.route("/system/organization-requests/<int:organization_id>/approve", methods=["POST"])
+@admin_required
+def approve_organization(organization_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """UPDATE organizations
+               SET status='approved', reviewed_at=CURRENT_TIMESTAMP,
+                   reviewed_by=%s, rejection_reason=NULL
+               WHERE id=%s AND status='pending'""",
+            (session.get("admin", "system-admin"), organization_id),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            flash("This application was not found or has already been reviewed.", "warning")
+        else:
+            conn.commit()
+            flash("Organization approved. Its account is now marked as verified.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_requests"))
+
+
+@app.route("/system/organization-requests/<int:organization_id>/reject", methods=["POST"])
+@admin_required
+def reject_organization(organization_id):
+    reason = request.form.get("rejection_reason", "").strip()
+    if len(reason) > 500:
+        flash("Rejection reason must be 500 characters or fewer.", "danger")
+        return redirect(url_for("organization_requests"))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """UPDATE organizations
+               SET status='rejected', reviewed_at=CURRENT_TIMESTAMP,
+                   reviewed_by=%s, rejection_reason=%s
+               WHERE id=%s AND status='pending'""",
+            (session.get("admin", "system-admin"), reason or None, organization_id),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            flash("This application was not found or has already been reviewed.", "warning")
+        else:
+            conn.commit()
+            flash("Organization application rejected.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_requests"))
+
+
+
+
+# ---------------------------------------------------------------------------
+# Organization sign-in and tenant-isolated student management (Phase 2)
+# ---------------------------------------------------------------------------
+
+def organization_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("organization_id"):
+            flash("Please sign in with your approved organization account.", "warning")
+            return redirect(url_for("organization_login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route("/organization/login", methods=["GET", "POST"])
+def organization_login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT id, organization_name, password_hash, status, rejection_reason
+                   FROM organizations WHERE LOWER(email)=%s""",
+                (email,),
+            )
+            organization = cur.fetchone()
+        finally:
+            cur.close()
+            conn.close()
+
+        if not organization or not check_password_hash(organization[2], password):
+            flash("Invalid organization email or password.", "danger")
+        elif organization[3] == "pending":
+            flash("Your organization application is still awaiting verification.", "warning")
+        elif organization[3] == "rejected":
+            flash(
+                "Your organization application was not approved. "
+                + (organization[4] or "Please contact EduTrack support."),
+                "danger",
+            )
+        elif organization[3] != "approved":
+            flash("This organization account is currently not active. Contact EduTrack support.", "danger")
+        else:
+            session.clear()
+            session["organization_id"] = organization[0]
+            session["organization_name"] = organization[1]
+            flash("Organization login successful.", "success")
+            return redirect(url_for("organization_dashboard"))
+
+    return render_template("organizations/login.html")
+
+
+@app.route("/organization/logout", methods=["POST"])
+@organization_required
+def organization_logout():
+    session.pop("organization_id", None)
+    session.pop("organization_name", None)
+    flash("You have been signed out.", "success")
+    return redirect(url_for("organization_login"))
+
+
+@app.route("/organization")
+@organization_required
+def organization_dashboard():
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT COUNT(*),
+                      COALESCE(ROUND(AVG((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0),2),0),
+                      COALESCE(MAX((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0),0)
+               FROM organization_students WHERE organization_id=%s""",
+            (organization_id,),
+        )
+        summary = cur.fetchone()
+        cur.execute(
+            """SELECT roll_number, name, math, science, english
+               FROM organization_students WHERE organization_id=%s
+               ORDER BY created_at DESC, roll_number LIMIT 8""",
+            (organization_id,),
+        )
+        students = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    recent = []
+    for student in students:
+        average = calculate_average(student[2:5])
+        recent.append({
+            "roll": student[0], "name": student[1],
+            "math": student[2], "science": student[3],
+            "english": student[4], "average": average,
+        })
+    return render_template(
+        "organizations/dashboard.html",
+        organization_name=session.get("organization_name", "Organization"),
+        total_students=summary[0] or 0,
+        average=summary[1] or 0,
+        highest=summary[2] or 0,
+        students=recent,
+    )
+
+
+@app.route("/organization/students")
+@organization_required
+def organization_students():
+    organization_id = session["organization_id"]
+    search = request.args.get("q", "").strip()[:100]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if search:
+            pattern = f"%{search}%"
+            cur.execute(
+                """SELECT roll_number, name, math, science, english
+                   FROM organization_students
+                   WHERE organization_id=%s
+                     AND (roll_number ILIKE %s OR name ILIKE %s)
+                   ORDER BY roll_number LIMIT 200""",
+                (organization_id, pattern, pattern),
+            )
+        else:
+            cur.execute(
+                """SELECT roll_number, name, math, science, english
+                   FROM organization_students
+                   WHERE organization_id=%s ORDER BY roll_number LIMIT 200""",
+                (organization_id,),
+            )
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    students = [{
+        "roll": row[0], "name": row[1],
+        "math": row[2], "science": row[3], "english": row[4],
+        "average": calculate_average(row[2:5]),
+    } for row in rows]
+    return render_template("organizations/students.html", students=students, search=search)
+
+
+@app.route("/organization/students/add", methods=["GET", "POST"])
+@organization_required
+def organization_add_student():
+    if request.method == "POST":
+        form, error = validate_student_form(request.form)
+        if error:
+            flash(error, "danger")
+            return render_template("organizations/add_student.html"), 400
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """INSERT INTO organization_students
+                   (organization_id, roll_number, name, math, science, english)
+                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                (
+                    session["organization_id"], str(form["roll"]), form["name"],
+                    form["math"], form["science"], form["english"],
+                ),
+            )
+            conn.commit()
+            flash("Student added successfully.", "success")
+            return redirect(url_for("organization_students"))
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            flash("This roll number is already used in your organization.", "danger")
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("organizations/add_student.html")
+
+
+@app.route("/organization/students/<path:roll>")
+@organization_required
+def organization_student_details(roll):
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT s.id,s.roll_number,s.name,s.math,s.science,s.english,s.created_at,
+            p.date_of_birth,p.gender,p.email,p.phone,p.guardian_name,p.guardian_phone,p.address,
+            p.admission_number,p.joining_date,p.admission_standard,p.notes,p.photo_mime
+            FROM organization_students s LEFT JOIN organization_student_profiles p
+            ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE s.organization_id=%s AND s.roll_number=%s""", (oid, roll))
+        r = cur.fetchone()
+        if not r:
+            abort(404)
+        cur.execute("""SELECT academic_year,standard,term,subject,marks_obtained,maximum_marks,recorded_at
+            FROM organization_student_assessments WHERE organization_id=%s AND student_id=%s
+            ORDER BY academic_year DESC,recorded_at DESC""", (oid, r[0]))
+        history = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    student = dict(zip(("id","roll","name","math","science","english","created","date_of_birth",
+        "gender","email","phone","guardian_name","guardian_phone","address","admission_number",
+        "joining_date","admission_standard","notes","photo_mime"), r))
+    student["average"] = calculate_average(r[3:6])
+    assessments = [{"academic_year":x[0],"standard":x[1],"term":x[2],"subject":x[3],
+        "marks":x[4],"maximum":x[5],"percentage":round(float(x[4])/float(x[5])*100,2),
+        "recorded_at":x[6]} for x in history]
+    return render_template("organizations/student_details.html", student=student, assessments=assessments)
+
+
+# ---------------------------------------------------------------------------
+# Detailed student profiles, photo uploads and academic history (Phase 3)
+# ---------------------------------------------------------------------------
+
+def _valid_image_upload(upload):
+    if not upload or not upload.filename:
+        return None, None
+    data = upload.read(2 * 1024 * 1024 + 1)
+    upload.stream.seek(0)
+    if not data or len(data) > 2 * 1024 * 1024:
+        return None, "Photo must be a non-empty image smaller than 2 MB."
+    if data.startswith(b"\xff\xd8\xff"):
+        mime = "image/jpeg"
+    elif data.startswith(b"\x89PNG\r\n\x1a\n"):
+        mime = "image/png"
+    elif len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        mime = "image/webp"
+    else:
+        return None, "Upload a valid JPG, PNG or WebP photo."
+    return (data, mime), None
+
+
+@app.route("/organization/students/<path:roll>/profile", methods=["GET", "POST"])
+@organization_required
+def organization_edit_student_profile(roll):
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id, roll_number, name FROM organization_students
+               WHERE organization_id=%s AND roll_number=%s""",
+            (organization_id, roll),
+        )
+        student = cur.fetchone()
+        if not student:
+            abort(404)
+
+        if request.method == "POST":
+            photo, photo_error = _valid_image_upload(request.files.get("photo"))
+            if photo_error:
+                flash(photo_error, "danger")
+                return redirect(url_for("organization_edit_student_profile", roll=roll))
+
+            joining_date = request.form.get("joining_date", "").strip() or None
+            date_of_birth = request.form.get("date_of_birth", "").strip() or None
+            for field_name, value in (("joining date", joining_date), ("date of birth", date_of_birth)):
+                if value:
+                    try:
+                        datetime.strptime(value, "%Y-%m-%d")
+                    except ValueError:
+                        flash("Enter a valid " + field_name + ".", "danger")
+                        return redirect(url_for("organization_edit_student_profile", roll=roll))
+
+            values = (
+                date_of_birth, request.form.get("gender", "").strip()[:40] or None,
+                request.form.get("email", "").strip()[:254] or None,
+                request.form.get("phone", "").strip()[:30] or None,
+                request.form.get("guardian_name", "").strip()[:120] or None,
+                request.form.get("guardian_phone", "").strip()[:30] or None,
+                request.form.get("address", "").strip()[:500] or None,
+                request.form.get("admission_number", "").strip()[:80] or None,
+                joining_date,
+                request.form.get("admission_standard", "").strip()[:40] or None,
+                request.form.get("notes", "").strip()[:2000] or None,
+            )
+            cur.execute(
+                """INSERT INTO organization_student_profiles
+                   (organization_id, student_id, date_of_birth, gender, email, phone,
+                    guardian_name, guardian_phone, address, admission_number,
+                    joining_date, admission_standard, notes)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (organization_id, student_id) DO UPDATE SET
+                    date_of_birth=EXCLUDED.date_of_birth, gender=EXCLUDED.gender,
+                    email=EXCLUDED.email, phone=EXCLUDED.phone,
+                    guardian_name=EXCLUDED.guardian_name,
+                    guardian_phone=EXCLUDED.guardian_phone, address=EXCLUDED.address,
+                    admission_number=EXCLUDED.admission_number,
+                    joining_date=EXCLUDED.joining_date,
+                    admission_standard=EXCLUDED.admission_standard,
+                    notes=EXCLUDED.notes, updated_at=CURRENT_TIMESTAMP""",
+                (organization_id, student[0], *values),
+            )
+            if photo:
+                cur.execute(
+                    """UPDATE organization_student_profiles
+                       SET photo_data=%s, photo_mime=%s, updated_at=CURRENT_TIMESTAMP
+                       WHERE organization_id=%s AND student_id=%s""",
+                    (photo[0], photo[1], organization_id, student[0]),
+                )
+            conn.commit()
+            flash("Student profile saved successfully.", "success")
+            return redirect(url_for("organization_student_details", roll=roll))
+
+        cur.execute(
+            """SELECT date_of_birth, gender, email, phone, guardian_name,
+                      guardian_phone, address, admission_number, joining_date,
+                      admission_standard, notes, photo_mime
+               FROM organization_student_profiles
+               WHERE organization_id=%s AND student_id=%s""",
+            (organization_id, student[0]),
+        )
+        profile = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+
+    profile_data = {}
+    if profile:
+        profile_data = dict(zip(
+            ("date_of_birth", "gender", "email", "phone", "guardian_name",
+             "guardian_phone", "address", "admission_number", "joining_date",
+             "admission_standard", "notes", "photo_mime"),
+            profile,
+        ))
+    return render_template(
+        "organizations/edit_profile.html",
+        student={"roll": student[1], "name": student[2]},
+        profile=profile_data,
+    )
+
+
+@app.route("/organization/students/<path:roll>/photo")
+@organization_required
+def organization_student_photo(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT p.photo_data, p.photo_mime
+               FROM organization_students s
+               JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND s.roll_number=%s""",
+            (session["organization_id"], roll),
+        )
+        photo = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not photo or not photo[0]:
+        abort(404)
+    return Response(
+        bytes(photo[0]),
+        mimetype=photo[1],
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.route("/organization/students/<path:roll>/assessments/add", methods=["POST"])
+@organization_required
+def organization_add_assessment(roll):
+    organization_id = session["organization_id"]
+    try:
+        marks = float(request.form.get("marks_obtained", ""))
+        maximum = float(request.form.get("maximum_marks", ""))
+    except (TypeError, ValueError):
+        flash("Enter valid marks and maximum marks.", "danger")
+        return redirect(url_for("organization_student_details", roll=roll))
+    academic_year = request.form.get("academic_year", "").strip()
+    standard = request.form.get("standard", "").strip()
+    term = request.form.get("term", "").strip()
+    subject = request.form.get("subject", "").strip()
+    if (not academic_year or len(academic_year) > 20 or not standard or len(standard) > 40
+        or not term or len(term) > 40 or not subject or len(subject) > 60
+        or maximum <= 0 or marks < 0 or marks > maximum):
+        flash("Check the academic year, standard, term, subject and marks.", "danger")
+        return redirect(url_for("organization_student_details", roll=roll))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO organization_student_assessments
+               (organization_id, student_id, academic_year, standard, term,
+                subject, marks_obtained, maximum_marks)
+               SELECT %s, id, %s, %s, %s, %s, %s, %s
+               FROM organization_students
+               WHERE organization_id=%s AND roll_number=%s""",
+            (organization_id, academic_year, standard, term, subject, marks, maximum, organization_id, roll),
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            abort(404)
+        conn.commit()
+        flash("Academic assessment added to the student's history.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_student_details", roll=roll))
+
+
+
+# Organization portal extensions. Every query is scoped by the active organization.
+@app.route("/organization/students/<path:roll>/edit", methods=["GET", "POST"])
+@organization_required
+def organization_edit_student(roll):
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s AND roll_number=%s""", (oid, roll))
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        if request.method == "POST":
+            form, error = validate_student_form(request.form, include_roll=False)
+            if error:
+                flash(error, "danger")
+                return redirect(url_for("organization_edit_student", roll=roll))
+            cur.execute("""UPDATE organization_students SET name=%s,math=%s,science=%s,english=%s,
+                           updated_at=CURRENT_TIMESTAMP WHERE organization_id=%s AND roll_number=%s""",
+                        (form["name"], form["math"], form["science"], form["english"], oid, roll))
+            conn.commit()
+            flash("Student record updated.", "success")
+            return redirect(url_for("organization_student_details", roll=roll))
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/edit_student.html",
+        student={"roll":row[0],"name":row[1],"math":row[2],"science":row[3],"english":row[4]})
+
+
+@app.route("/organization/students/<path:roll>/delete", methods=["POST"])
+@organization_required
+def organization_delete_student(roll):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM organization_students WHERE organization_id=%s AND roll_number=%s",
+                    (session["organization_id"], roll))
+        if cur.rowcount == 0:
+            abort(404)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    flash("Student and related records deleted.", "success")
+    return redirect(url_for("organization_students"))
+
+
+@app.route("/organization/students/import", methods=["GET", "POST"])
+@organization_required
+def organization_import_students():
+    if request.method == "POST":
+        records, error = _read_uploaded_student_file(request.files.get("student_file"))
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("organization_import_students"))
+        oid = session["organization_id"]
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("""SELECT roll_number FROM organization_students
+                           WHERE organization_id=%s AND roll_number=ANY(%s)""",
+                        (oid, [str(item["roll"]) for item in records]))
+            existing = {str(row[0]) for row in cur.fetchall()}
+            duplicates = [str(item["roll"]) for item in records if str(item["roll"]) in existing]
+            if duplicates:
+                flash("Existing roll numbers in your organization: " + ", ".join(duplicates[:10]) +
+                      ". Nothing was imported.", "warning")
+                return redirect(url_for("organization_import_students"))
+            cur.executemany("""INSERT INTO organization_students
+                (organization_id,roll_number,name,math,science,english) VALUES (%s,%s,%s,%s,%s,%s)""",
+                [(oid,str(x["roll"]),x["name"],x["math"],x["science"],x["english"]) for x in records])
+            conn.commit()
+            flash(f"Imported {len(records)} students.", "success")
+            return redirect(url_for("organization_students"))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("students/import.html", organization_mode=True)
+
+
+@app.route("/organization/export/csv")
+@organization_required
+def organization_export_csv():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s ORDER BY roll_number""", (session["organization_id"],))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\r\n")
+    writer.writerow(["roll_number","name","math","science","english"])
+    for row in rows:
+        writer.writerow([row[0],safe_spreadsheet_text(row[1]),*row[2:]])
+    response = Response("\ufeff"+output.getvalue(), mimetype="text/csv; charset=utf-8")
+    response.headers["Content-Disposition"] = 'attachment; filename="organization-students.csv"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/organization/export/excel")
+@organization_required
+def organization_export_excel():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s ORDER BY roll_number""", (session["organization_id"],))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Students"
+    sheet.append(["Roll Number","Name","Math","Science","English","Average"])
+    for row in rows:
+        sheet.append([row[0],safe_spreadsheet_text(row[1]),*row[2:],calculate_average(row[2:])])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="244A73")
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    response = send_file(buffer, as_attachment=True, download_name="organization-students.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/organization/attendance", methods=["GET", "POST"])
+@organization_required
+def organization_attendance():
+    oid = session["organization_id"]
+    selected_date = request.values.get("attendance_date", date.today().isoformat())
+    try:
+        selected_date = date.fromisoformat(selected_date).isoformat()
+    except (TypeError, ValueError):
+        flash("Select a valid attendance date.", "danger")
+        return redirect(url_for("organization_attendance"))
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            cur.execute("SELECT id,roll_number FROM organization_students WHERE organization_id=%s", (oid,))
+            for student_id, roll in cur.fetchall():
+                status = request.form.get(f"status_{roll}", "")
+                if not status:
+                    continue
+                if status not in {"present","absent","late"}:
+                    flash("Invalid attendance status.", "danger")
+                    return redirect(url_for("organization_attendance", attendance_date=selected_date))
+                cur.execute("""INSERT INTO organization_attendance
+                    (organization_id,student_id,attendance_date,status) VALUES (%s,%s,%s,%s)
+                    ON CONFLICT (organization_id,student_id,attendance_date)
+                    DO UPDATE SET status=EXCLUDED.status,marked_at=CURRENT_TIMESTAMP""",
+                    (oid,student_id,selected_date,status))
+            conn.commit()
+            flash("Attendance saved.", "success")
+            return redirect(url_for("organization_attendance", attendance_date=selected_date))
+        cur.execute("""SELECT s.roll_number,s.name,a.status FROM organization_students s
+            LEFT JOIN organization_attendance a ON a.organization_id=s.organization_id
+            AND a.student_id=s.id AND a.attendance_date=%s
+            WHERE s.organization_id=%s ORDER BY s.roll_number""", (selected_date,oid))
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    students = [{"roll":r[0],"name":r[1],"status":r[2]} for r in rows]
+    counts = {status:sum(x["status"]==status for x in students) for status in ("present","absent","late")}
+    return render_template("attendance/index.html", students=students, attendance_date=selected_date,
+        total=len(students),present=counts["present"],absent=counts["absent"],late=counts["late"],
+        unmarked=len(students)-sum(counts.values()),organization_mode=True)
+
+
+@app.route("/organization/analytics")
+@organization_required
+def organization_analytics():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT COUNT(*),COALESCE(ROUND(AVG((math+science+english)/3.0),2),0),
+            COALESCE(MAX((math+science+english)/3.0),0),COALESCE(MIN((math+science+english)/3.0),0)
+            FROM organization_students WHERE organization_id=%s""", (oid,))
+        summary = cur.fetchone()
+        cur.execute("""SELECT COALESCE(ROUND(AVG(math),2),0),COALESCE(ROUND(AVG(science),2),0),
+            COALESCE(ROUND(AVG(english),2),0) FROM organization_students WHERE organization_id=%s""", (oid,))
+        subjects = cur.fetchone()
+        cur.execute("""SELECT status,COUNT(*) FROM organization_attendance
+            WHERE organization_id=%s AND attendance_date=CURRENT_DATE GROUP BY status""", (oid,))
+        attendance_counts = dict(cur.fetchall())
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/analytics.html", summary=summary,
+        subjects=subjects, attendance_counts=attendance_counts)
+
+
+
+
+@app.route("/organization/settings", methods=["GET", "POST"])
+@organization_required
+def organization_settings():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            try:
+                pass_mark = int(request.form.get("pass_mark", "33"))
+            except (TypeError, ValueError):
+                pass_mark = -1
+            if not 0 <= pass_mark <= 100:
+                flash("Pass mark must be between 0 and 100.", "danger")
+                return redirect(url_for("organization_settings"))
+            cur.execute(
+                """INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+                   VALUES (%s, 'pass_mark', %s)
+                   ON CONFLICT (organization_id, setting_key)
+                   DO UPDATE SET setting_value=EXCLUDED.setting_value, updated_at=CURRENT_TIMESTAMP""",
+                (oid, str(pass_mark)),
+            )
+            conn.commit()
+            session["pass_mark"] = pass_mark
+            flash("Organization settings saved.", "success")
+            return redirect(url_for("organization_settings"))
+        cur.execute(
+            """SELECT setting_value FROM organization_settings
+               WHERE organization_id=%s AND setting_key='pass_mark'""",
+            (oid,),
+        )
+        row = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    pass_mark = int(row[0]) if row else 33
+    session["pass_mark"] = pass_mark
+    return render_template("organizations/settings.html", pass_mark=pass_mark)
+
+
+
+@app.route("/organization/backup")
+@organization_required
+def organization_download_backup():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT id,roll_number,name,math,science,english FROM organization_students
+                       WHERE organization_id=%s ORDER BY roll_number""", (oid,))
+        students = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,p.date_of_birth,p.gender,p.email,p.phone,p.guardian_name,
+            p.guardian_phone,p.address,p.admission_number,p.joining_date,p.admission_standard,
+            p.notes,p.photo_data,p.photo_mime
+            FROM organization_student_profiles p JOIN organization_students s
+              ON s.organization_id=p.organization_id AND s.id=p.student_id
+            WHERE p.organization_id=%s ORDER BY s.roll_number""", (oid,))
+        profiles = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,a.academic_year,a.standard,a.term,a.subject,
+            a.marks_obtained,a.maximum_marks FROM organization_student_assessments a
+            JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
+            WHERE a.organization_id=%s ORDER BY s.roll_number,a.academic_year,a.term,a.subject""", (oid,))
+        assessments = cur.fetchall()
+        cur.execute("""SELECT s.roll_number,a.attendance_date,a.status FROM organization_attendance a
+            JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
+            WHERE a.organization_id=%s ORDER BY a.attendance_date,s.roll_number""", (oid,))
+        attendance_rows = cur.fetchall()
+        cur.execute("""SELECT setting_key,setting_value FROM organization_settings
+                       WHERE organization_id=%s ORDER BY setting_key""", (oid,))
+        settings = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        def add_csv(filename, headers, rows, transform=None):
+            output = StringIO(newline="")
+            writer = csv.writer(output, lineterminator="\\r\\n")
+            writer.writerow(headers)
+            for row in rows:
+                values = list(row)
+                if transform:
+                    values = transform(values)
+                writer.writerow(values)
+            archive.writestr(filename, "\\ufeff" + output.getvalue())
+
+        add_csv("students.csv", ["roll_number","name","math","science","english"],
+            [row[1:] for row in students],
+            lambda row: [row[0],safe_spreadsheet_text(row[1]),*row[2:]])
+        def profile_export(row):
+            if row[12] is not None:
+                row[12] = base64.b64encode(bytes(row[12])).decode("ascii")
+            for index in (1, 9):
+                if row[index] is not None:
+                    row[index] = row[index].isoformat()
+            return row
+        add_csv("profiles.csv", ["roll_number","date_of_birth","gender","email","phone",
+            "guardian_name","guardian_phone","address","admission_number","joining_date",
+            "admission_standard","notes","photo_base64","photo_mime"], profiles, profile_export)
+        add_csv("assessments.csv", ["roll_number","academic_year","standard","term","subject",
+            "marks_obtained","maximum_marks"], assessments)
+        add_csv("attendance.csv", ["roll_number","attendance_date","status"], attendance_rows,
+            lambda row: [row[0],row[1].isoformat(),row[2]])
+        add_csv("settings.csv", ["setting_key","setting_value"], settings)
+        archive.writestr("BACKUP_README.txt",
+            "EduTrack organization backup. Restore is add-only: existing student, profile, assessment, attendance and settings records are not overwritten.")
+    buffer.seek(0)
+    response = send_file(buffer, as_attachment=True,
+        download_name="edutrack-organization-backup.zip", mimetype="application/zip", max_age=0)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@app.route("/organization/restore", methods=["GET", "POST"])
+@organization_required
+def organization_restore_backup():
+    if request.method == "POST":
+        upload = request.files.get("backup_file")
+        if not upload or not upload.filename or not upload.filename.lower().endswith(".zip"):
+            flash("Choose an EduTrack organization backup ZIP file.", "danger")
+            return redirect(url_for("organization_restore_backup"))
+        raw = upload.read(10 * 1024 * 1024 + 1)
+        if len(raw) > 10 * 1024 * 1024:
+            flash("Backup is too large. Maximum size is 10 MB.", "danger")
+            return redirect(url_for("organization_restore_backup"))
+        conn = get_db_connection()
+        cur = conn.cursor()
+        oid = session["organization_id"]
+        try:
+            with zipfile.ZipFile(BytesIO(raw)) as archive:
+                allowed = {"students.csv","profiles.csv","assessments.csv","attendance.csv","settings.csv","BACKUP_README.txt"}
+                names = archive.namelist()
+                if (len(names) != len(set(names)) or any(name not in allowed for name in names)
+                    or "students.csv" not in names
+                    or sum(item.file_size for item in archive.infolist()) > 25 * 1024 * 1024
+                    or any(item.file_size > 10 * 1024 * 1024 for item in archive.infolist())):
+                    raise ValueError("Unrecognised backup archive")
+                def read_rows(name):
+                    if name not in names:
+                        return []
+                    return list(csv.DictReader(StringIO(archive.read(name).decode("utf-8-sig"))))
+                student_rows = read_rows("students.csv")
+                validated = []
+                for index, item in enumerate(student_rows, start=2):
+                    data, error = validate_student_form({
+                        "roll":item.get("roll_number",""), "name":item.get("name",""),
+                        "math":item.get("math",""), "science":item.get("science",""),
+                        "english":item.get("english","")})
+                    if error:
+                        raise ValueError(f"students.csv row {index}: {error}")
+                    validated.append(data)
+                rolls = [str(item["roll"]) for item in validated]
+                if len(rolls) != len(set(rolls)):
+                    raise ValueError("Backup contains duplicate roll numbers")
+                cur.executemany("""INSERT INTO organization_students
+                    (organization_id,roll_number,name,math,science,english)
+                    VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (organization_id,roll_number) DO NOTHING""",
+                    [(oid,str(x["roll"]),x["name"],x["math"],x["science"],x["english"]) for x in validated])
+                restored_students = cur.rowcount
+                cur.execute("SELECT id,roll_number FROM organization_students WHERE organization_id=%s", (oid,))
+                student_ids = {str(roll):student_id for student_id,roll in cur.fetchall()}
+                for item in read_rows("profiles.csv"):
+                    roll = str(item.get("roll_number",""))
+                    if roll not in student_ids:
+                        continue
+                    photo = base64.b64decode(item["photo_base64"], validate=True) if item.get("photo_base64") else None
+                    mime = item.get("photo_mime") or None
+                    valid_photo = (not photo or
+                        (mime == "image/jpeg" and photo.startswith(b"\\xff\\xd8\\xff")) or
+                        (mime == "image/png" and photo.startswith(b"\\x89PNG\\r\\n\\x1a\\n")) or
+                        (mime == "image/webp" and len(photo)>12 and photo[:4]==b"RIFF" and photo[8:12]==b"WEBP"))
+                    if not valid_photo or (photo and len(photo)>1024*1024) or (not photo and mime):
+                        raise ValueError("Invalid profile photo in backup")
+                    cur.execute("""INSERT INTO organization_student_profiles
+                        (organization_id,student_id,date_of_birth,gender,email,phone,guardian_name,
+                         guardian_phone,address,admission_number,joining_date,admission_standard,notes,
+                         photo_data,photo_mime)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (organization_id,student_id) DO NOTHING""",
+                        (oid,student_ids[roll],item.get("date_of_birth") or None,item.get("gender") or None,
+                         item.get("email") or None,item.get("phone") or None,item.get("guardian_name") or None,
+                         item.get("guardian_phone") or None,item.get("address") or None,
+                         item.get("admission_number") or None,item.get("joining_date") or None,
+                         item.get("admission_standard") or None,item.get("notes") or None,
+                         psycopg2.Binary(photo) if photo else None,mime))
+                for item in read_rows("assessments.csv"):
+                    roll = str(item.get("roll_number",""))
+                    if roll not in student_ids:
+                        continue
+                    marks = float(item["marks_obtained"]); maximum = float(item["maximum_marks"])
+                    if not (0 <= marks <= maximum and maximum > 0):
+                        raise ValueError("Invalid assessment marks in backup")
+                    cur.execute("""INSERT INTO organization_student_assessments
+                        (organization_id,student_id,academic_year,standard,term,subject,marks_obtained,maximum_marks)
+                        SELECT %s,%s,%s,%s,%s,%s,%s,%s
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM organization_student_assessments
+                            WHERE organization_id=%s AND student_id=%s AND academic_year=%s
+                              AND standard=%s AND term=%s AND subject=%s
+                              AND marks_obtained=%s AND maximum_marks=%s
+                        )""",
+                        (oid,student_ids[roll],item["academic_year"],item["standard"],item["term"],
+                         item["subject"],marks,maximum,oid,student_ids[roll],item["academic_year"],
+                         item["standard"],item["term"],item["subject"],marks,maximum))
+                for item in read_rows("attendance.csv"):
+                    roll = str(item.get("roll_number",""))
+                    status = item.get("status","")
+                    if roll not in student_ids or status not in {"present","absent","late"}:
+                        raise ValueError("Invalid attendance record in backup")
+                    cur.execute("""INSERT INTO organization_attendance
+                        (organization_id,student_id,attendance_date,status)
+                        VALUES (%s,%s,%s,%s) ON CONFLICT (organization_id,student_id,attendance_date) DO NOTHING""",
+                        (oid,student_ids[roll],item["attendance_date"],status))
+                for item in read_rows("settings.csv"):
+                    if item.get("setting_key") == "pass_mark":
+                        mark = int(item.get("setting_value",""))
+                        if 0 <= mark <= 100:
+                            cur.execute("""INSERT INTO organization_settings (organization_id,setting_key,setting_value)
+                                VALUES (%s,'pass_mark',%s) ON CONFLICT (organization_id,setting_key) DO NOTHING""",
+                                (oid,str(mark)))
+            conn.commit()
+            flash(f"Restore complete: {restored_students} new students added. Existing organization records were preserved.", "success")
+            return redirect(url_for("organization_students"))
+        except (zipfile.BadZipFile, KeyError, ValueError, UnicodeDecodeError, TypeError):
+            conn.rollback()
+            flash("The backup is damaged or contains invalid data. No changes were saved.", "danger")
+            return redirect(url_for("organization_restore_backup"))
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("organizations/restore.html")
+
+
+
+@app.route("/organization/students/<path:roll>/result.pdf")
+@organization_required
+def organization_download_student_result(roll):
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT roll_number,name,math,science,english
+            FROM organization_students WHERE organization_id=%s AND roll_number=%s""", (oid,roll))
+        student = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not student:
+        abort(404)
+    average = calculate_average(student[2:5])
+    grade = calculate_grade(average)
+    styles = getSampleStyleSheet()
+    buffer = BytesIO()
+    document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=48, leftMargin=48,
+        topMargin=48, bottomMargin=48, title=f"EduTrack Result - {student[0]}")
+    story = [
+        Paragraph("EduTrack Student Result Card", styles["Title"]),
+        Spacer(1, 12),
+        Paragraph(f"<b>Student Name:</b> {escape(str(student[1]))}", styles["BodyText"]),
+        Paragraph(f"<b>Roll Number:</b> {escape(str(student[0]))}", styles["BodyText"]),
+        Spacer(1, 18),
+    ]
+    result_rows = [["Subject", "Marks"]]
+    for subject, mark in zip(("Math", "Science", "English"), student[2:5]):
+        result_rows.append([subject, str(mark)])
+    result_rows.extend([["Average", f"{average}%"], ["Grade", grade]])
+    table = Table(result_rows, colWidths=[240, 180])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#244A73")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D7DEE8")),
+        ("PADDING", (0, 0), (-1, -1), 9),
+    ]))
+    story.append(table)
+    document.build(story)
+    buffer.seek(0)
+    response = send_file(buffer, as_attachment=True,
+        download_name=f"student-result-{student[0]}.pdf", mimetype="application/pdf")
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
 
 if __name__ == "__main__":
     app.run(debug=True)

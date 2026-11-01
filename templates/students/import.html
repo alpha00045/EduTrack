@@ -10,7 +10,7 @@
       <label class="form-label fw-semibold" for="studentFile">Student spreadsheet</label>
       <input class="form-control mb-3" id="studentFile" name="student_file" type="file" accept=".csv,.xlsx" required>
       <button class="btn btn-primary" type="submit"><i class="bi bi-upload me-2"></i>Validate and import</button>
-      <a class="btn btn-outline-secondary ms-2" href="{{ url_for('view_students') }}">Cancel</a>
+      <a class="btn btn-outline-secondary ms-2" href="{{ url_for('organization_students') if organization_mode else url_for('view_students') }}">Cancel</a>
     </form>
   </section></div><div class="col-lg-5"><section class="surface-card p-4">
     <h2 class="section-heading">Required columns</h2><p class="section-subtitle">Use these exact headings (case-insensitive).</p>

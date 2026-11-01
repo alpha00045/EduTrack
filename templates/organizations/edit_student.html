@@ -1,0 +1,13 @@
+{% extends "layouts/base.html" %}
+{% block title %}Edit Student | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:760px">
+<a href="{{ url_for('organization_student_details',roll=student.roll) }}" class="small">← Student profile</a>
+<h1 class="h2 fw-bold mt-2 mb-4">Edit {{ student.name }}</h1>
+<form method="POST" class="card border-0 shadow-sm p-4">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="mb-3"><label class="form-label">Roll number</label><input class="form-control" value="{{ student.roll }}" disabled></div>
+<div class="mb-3"><label class="form-label">Student name</label><input class="form-control" name="name" maxlength="100" value="{{ student.name }}" required></div>
+<div class="row g-3">{% for subject in ['math','science','english'] %}<div class="col-md-4"><label class="form-label">{{ subject|title }}</label><input class="form-control" type="number" min="0" max="100" name="{{ subject }}" value="{{ student[subject] }}" required></div>{% endfor %}</div>
+<button class="btn btn-primary mt-4">Save changes</button></form></main>
+{% endblock %}

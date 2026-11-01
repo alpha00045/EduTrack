@@ -1,0 +1,18 @@
+{% extends "layouts/base.html" %}
+{% block title %}Restore Organization Backup | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4 feature-page" style="max-width:760px">
+  <a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a>
+  <h1 class="h2 fw-bold mt-2 mb-2">Restore organization backup</h1>
+  <p class="text-muted">Restore student records, profiles, photos, academic history, attendance and organization settings.</p>
+  <div class="alert alert-info">Restore is add-only. Existing student and related records are not overwritten. Only this organization's data is processed.</div>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+  <form method="POST" enctype="multipart/form-data" class="surface-card p-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="form-label fw-semibold" for="backupFile">Organization backup ZIP</label>
+    <input class="form-control mb-3" id="backupFile" name="backup_file" type="file" accept=".zip" required>
+    <button class="btn btn-primary">Validate and restore</button>
+    <a class="btn btn-outline-secondary ms-2" href="{{ url_for('organization_download_backup') }}">Download current backup</a>
+  </form>
+</main>
+{% endblock %}

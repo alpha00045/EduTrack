@@ -1,0 +1,35 @@
+{% extends "layouts/base.html" %}
+{% block title %}Register Your Organization | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-5" style="max-width: 900px;">
+  <div class="mb-4">
+    <span class="badge text-bg-primary mb-2">EduTrack for Institutions</span>
+    <h1 class="fw-bold">Register your organization</h1>
+    <p class="text-muted">Apply for an EduTrack organization account. Our system administrator will verify your details before access is granted.</p>
+  </div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+  <form method="POST" class="card border-0 shadow-sm p-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h5 class="mb-3">Organization details</h5>
+    <div class="row g-3">
+      <div class="col-md-7"><label class="form-label" for="orgName">Organization / institute name *</label><input class="form-control" id="orgName" name="organization_name" maxlength="150" value="{{ form.get('organization_name','') }}" required></div>
+      <div class="col-md-5"><label class="form-label" for="orgType">Organization type *</label><select class="form-select" id="orgType" name="organization_type" required><option value="">Select type</option>{% for item in ['School','College','University','Coaching Institute','Other'] %}<option value="{{ item }}" {% if form.get('organization_type') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label" for="regNo">Institution registration / affiliation number</label><input class="form-control" id="regNo" name="registration_number" maxlength="80" value="{{ form.get('registration_number','') }}"><div class="form-text">If available. Use the official number issued by the relevant authority.</div></div>
+      <div class="col-md-6"><label class="form-label" for="contactPerson">Authorized contact person *</label><input class="form-control" id="contactPerson" name="contact_person" maxlength="120" value="{{ form.get('contact_person','') }}" required></div>
+      <div class="col-md-6"><label class="form-label" for="orgEmail">Official email address *</label><input class="form-control" id="orgEmail" type="email" name="email" maxlength="254" value="{{ form.get('email','') }}" autocomplete="email" required></div>
+      <div class="col-md-6"><label class="form-label" for="orgPhone">Contact phone number *</label><input class="form-control" id="orgPhone" name="phone" maxlength="25" value="{{ form.get('phone','') }}" autocomplete="tel" required></div>
+      <div class="col-12"><label class="form-label" for="orgAddress">Full institution address *</label><textarea class="form-control" id="orgAddress" name="address" rows="3" maxlength="500" required>{{ form.get('address','') }}</textarea></div>
+    </div>
+    <hr class="my-4">
+    <h5 class="mb-3">Create organization login</h5>
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label" for="orgPassword">Password *</label><input class="form-control" id="orgPassword" type="password" name="password" minlength="12" autocomplete="new-password" required><div class="form-text">At least 12 characters.</div></div>
+      <div class="col-md-6"><label class="form-label" for="confirmPassword">Confirm password *</label><input class="form-control" id="confirmPassword" type="password" name="confirm_password" minlength="12" autocomplete="new-password" required></div>
+    </div>
+    <div class="alert alert-info mt-4 mb-3"><i class="bi bi-shield-check me-2"></i>Your application will remain pending until verified. Submitting this form does not provide immediate access to student records.</div>
+    <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary px-4" type="submit">Submit for verification</button><a class="btn btn-outline-secondary" href="{{ url_for('login') }}">Back to login</a></div>
+  </form>
+</main>
+{% endblock %}

@@ -27,7 +27,7 @@ A Flask and PostgreSQL web application for managing student records, academic ma
 - Student names, marks, dashboard, details and reports are visible only to authenticated admins
 - Command-line student tracker with transaction-safe operations and CSV-formatted backups
 - CSV and Excel exports with spreadsheet-formula injection protection\n- Complete ZIP backup of students, profiles, photos, assessments, attendance and settings\n- Add-only restore that preserves existing student records
-- Admin-only downloadable PDF student result cards
+- Downloadable PDF student result cards for admins and organization users
 - Flash messages for user feedback
 - Environment-based admin credentials and Flask secret key
 
@@ -143,3 +143,51 @@ EduTrack is actively being improved. Features and test coverage may change as th
 
 **Sagar Nayak**  
 GitHub: https://github.com/alpha00045
+
+
+## Organization registration (Phase 1)
+
+EduTrack now includes an organization application workflow:
+
+1. Schools, colleges, universities and institutes can submit an application from **Register your organization** on the login page.
+2. The application stores institution details and a securely hashed password with status `pending`.
+3. The platform administrator reviews applications from **Organizations** in the admin navigation.
+4. The administrator can approve or reject pending applications. Review actions are authenticated and protected by CSRF.
+
+### Database migration
+
+Review and manually apply `migrations/003_organization_registration.sql` to the configured PostgreSQL/Supabase database. The application does not execute schema migrations automatically.
+
+The organization portal is developed separately from Platform Administration. Organization accounts cannot access the platform-wide Organizations approval/management area.
+
+
+## Organization portal (Phase 2)
+
+Approved organizations can sign in at `/organization/login`. Pending, rejected, or suspended applications are not allowed into the organization portal. The portal provides an organization dashboard and student list, add-student, and student-detail pages. Tenant student data is stored in dedicated organization tables, separate from the original single-admin `students` table. Every organization student query is filtered by the authenticated organization ID.
+
+Review and manually apply `migrations/004_organization_tenant_data.sql` after migration 003. The migration also creates organization-specific profile, assessment-history and attendance tables for subsequent feature work. Do not run migrations against production until you have taken a backup and reviewed the SQL.
+
+
+## Organization portal feature parity
+
+Each approved organization has its own portal with tenant-scoped student management:
+
+- Student dashboard, search, add, edit, delete and detailed profiles
+- Academic assessment history and profile photo management
+- CSV and Excel exports, bulk CSV/XLSX import, and individual result-card PDF downloads
+- Daily attendance register and organization-level analytics
+- Organization-specific pass-mark settings
+- Complete organization backup and add-only ZIP restore (students, profiles/photos, assessment history, attendance and settings)
+
+All organization data routes filter by the signed-in `organization_id`. Organization accounts do not receive the Platform Administration **Organizations** approval and management feature, and cannot access platform admin routes. Organization backup and restore operate only on the active organization's records.
+
+### Organization settings migration
+
+After migrations 003 and 004, review and manually apply `migrations/005_organization_settings.sql` to create the organization-specific settings table. Do not run it against a live database until you have a verified backup. No migration is executed automatically by the application.
+
+### Safe rollout
+
+1. Take a verified database backup.
+2. Apply migrations 003, 004 and 005 in order, if they have not already been applied.
+3. Test organization registration, approval, login, student CRUD, imports/exports, attendance, analytics, settings and backup/restore using a test organization and dummy data.
+4. Keep the changes on the feature branch until the owner has reviewed and approved the pull request.

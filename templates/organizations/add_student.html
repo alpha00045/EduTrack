@@ -1,0 +1,11 @@
+{% extends "layouts/base.html" %}
+{% block title %}Add Student | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:760px"><a href="{{ url_for('organization_students') }}" class="small">← Students</a><h1 class="h2 fw-bold mt-2 mb-4">Add student</h1>
+{% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+<form method="POST" class="card border-0 shadow-sm p-4"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="row g-3">
+<div class="col-md-6"><label class="form-label">Roll number</label><input class="form-control" type="number" min="1" name="roll" required></div>
+<div class="col-md-6"><label class="form-label">Student name</label><input class="form-control" name="name" maxlength="100" required></div>
+{% for subject in ['math','science','english'] %}<div class="col-md-4"><label class="form-label">{{ subject|title }} marks</label><input class="form-control" type="number" min="0" max="100" name="{{ subject }}" required></div>{% endfor %}
+</div><button class="btn btn-primary mt-4" type="submit">Save student</button></form></main>
+{% endblock %}

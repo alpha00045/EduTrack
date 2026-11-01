@@ -1,0 +1,32 @@
+{% extends "layouts/base.html" %}
+{% block title %}Edit Student Profile | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:900px">
+  <a href="{{ url_for('organization_student_details',roll=student.roll) }}" class="small">← Student profile</a>
+  <h1 class="h2 fw-bold mt-2">Edit {{ student.name }}'s profile</h1>
+  <p class="text-muted">Save personal, guardian and admission details. JPG, PNG or WebP photos up to 2 MB are supported.</p>
+  <form method="POST" enctype="multipart/form-data" class="card border-0 shadow-sm p-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if profile.photo_mime %}<div class="mb-3"><img src="{{ url_for('organization_student_photo',roll=student.roll) }}" alt="Current student photo" class="rounded-circle border" style="width:100px;height:100px;object-fit:cover"></div>{% endif %}
+    <div class="mb-4"><label class="form-label">Student photo</label><input class="form-control" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"></div>
+    <h2 class="h5 fw-bold">Personal details</h2><div class="row g-3 mb-4">
+      <div class="col-md-4"><label class="form-label">Date of birth</label><input class="form-control" type="date" name="date_of_birth" value="{{ profile.date_of_birth or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Gender</label><input class="form-control" name="gender" maxlength="40" value="{{ profile.gender or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Email</label><input class="form-control" type="email" name="email" maxlength="254" value="{{ profile.email or '' }}"></div>
+      <div class="col-md-6"><label class="form-label">Phone</label><input class="form-control" name="phone" maxlength="30" value="{{ profile.phone or '' }}"></div>
+      <div class="col-md-6"><label class="form-label">Address</label><input class="form-control" name="address" maxlength="500" value="{{ profile.address or '' }}"></div>
+    </div>
+    <h2 class="h5 fw-bold">Guardian details</h2><div class="row g-3 mb-4">
+      <div class="col-md-6"><label class="form-label">Guardian name</label><input class="form-control" name="guardian_name" maxlength="120" value="{{ profile.guardian_name or '' }}"></div>
+      <div class="col-md-6"><label class="form-label">Guardian phone</label><input class="form-control" name="guardian_phone" maxlength="30" value="{{ profile.guardian_phone or '' }}"></div>
+    </div>
+    <h2 class="h5 fw-bold">Admission details</h2><div class="row g-3 mb-4">
+      <div class="col-md-4"><label class="form-label">Admission number</label><input class="form-control" name="admission_number" maxlength="80" value="{{ profile.admission_number or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Joining date</label><input class="form-control" type="date" name="joining_date" value="{{ profile.joining_date or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Admission standard</label><input class="form-control" name="admission_standard" maxlength="40" value="{{ profile.admission_standard or '' }}"></div>
+      <div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" name="notes" rows="3" maxlength="2000">{{ profile.notes or '' }}</textarea></div>
+    </div>
+    <div class="d-flex gap-2"><button class="btn btn-primary">Save profile</button><a class="btn btn-outline-secondary" href="{{ url_for('organization_student_details',roll=student.roll) }}">Cancel</a></div>
+  </form>
+</main>
+{% endblock %}

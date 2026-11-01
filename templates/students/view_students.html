@@ -71,9 +71,9 @@
                         <td>{{ s.english if s.english is not none else "—" }}</td>
                         <td><strong>{{ s.average }}%</strong></td>
                         <td><span class="grade-pill">{{ s.grade }}</span></td>
-                        <td class="text-end"><a class="btn btn-sm btn-outline-primary"
+                        <td class="text-end">{% if not s.organization %}<a class="btn btn-sm btn-outline-primary"
                             href="{{ url_for('student_details', roll=s.roll) }}" aria-label="View {{ s.name }}">
-                            View <i class="bi bi-arrow-up-right ms-1"></i></a></td>
+                            View <i class="bi bi-arrow-up-right ms-1"></i></a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                     </tr>
                 {% else %}
                     <tr><td colspan="11">

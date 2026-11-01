@@ -743,3 +743,38 @@ def test_organization_student_details_query_is_scoped_to_tenant(client, monkeypa
     normalized_query = " ".join(query.split())
     assert "WHERE s.organization_id=%s AND s.roll_number=%s" in normalized_query
     assert params == (23, "501")
+
+
+def test_organization_portal_routes_require_organization_login(client):
+    protected_routes = [
+        "/organization",
+        "/organization/students",
+        "/organization/students/import",
+        "/organization/export/csv",
+        "/organization/export/excel",
+        "/organization/attendance",
+        "/organization/analytics",
+        "/organization/settings",
+    ]
+    for route in protected_routes:
+        response = client.get(route)
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_organization_user_cannot_access_platform_organization_management(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+    response = client.get("/system/organization-requests")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+
+
+def test_organization_user_cannot_access_platform_admin_dashboard(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+    response = client.get("/")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")

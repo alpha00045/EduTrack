@@ -303,11 +303,12 @@ def view_students():
     try:
         cur.execute("SELECT id,name FROM organizations WHERE status='approved' ORDER BY name")
         organizations=cur.fetchall()
-        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard")
+        cur.execute("SELECT standard FROM students WHERE standard IS NOT NULL AND standard<>'' UNION SELECT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY 1")
         standards=[x[0] for x in cur.fetchall()]
-        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE semester IS NOT NULL AND semester<>'' ORDER BY semester")
+        cur.execute("SELECT semester FROM students WHERE semester IS NOT NULL AND semester<>'' UNION SELECT semester FROM organization_student_profiles WHERE semester IS NOT NULL AND semester<>'' ORDER BY 1")
         semesters=[x[0] for x in cur.fetchall()]
         if org=="admin":
+            order = {"roll":"roll_number ASC","name":"LOWER(name) ASC","average":"((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0) DESC"}.get(sort,"roll_number ASC")
             clauses=[]; params=[]
             if q: clauses.append("(CAST(roll_number AS TEXT) ILIKE %s OR name ILIKE %s)"); params += [f"%{q}%"]*2
             if standard: clauses.append("standard=%s"); params.append(standard)
@@ -317,6 +318,7 @@ def view_students():
             pages=max(1,(total+19)//20); page=min(page,pages); offset=(page-1)*20
             cur.execute(f"SELECT roll_number,name,math,science,english,standard,semester,NULL::TEXT FROM students{where} ORDER BY {order} LIMIT 20 OFFSET %s",tuple(params+[offset]))
         else:
+            order = {"roll":"s.roll_number ASC","name":"LOWER(s.name) ASC","average":"((COALESCE(s.math,0)+COALESCE(s.science,0)+COALESCE(s.english,0))/3.0) DESC"}.get(sort,"s.roll_number ASC")
             clauses=[]; params=[]
             if org!="all":
                 try: clauses.append("s.organization_id=%s"); params.append(int(org))

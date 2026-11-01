@@ -169,6 +169,12 @@ def validate_student_form(form, include_roll=True):
         return None, "Student name is required and must be 100 characters or fewer."
 
     data = {"name": name}
+    standard = form.get("standard", "").strip()[:40]
+    semester = form.get("semester", "").strip()[:20]
+    if standard:
+        data["standard"] = standard
+    if semester:
+        data["semester"] = semester
     if include_roll:
         try:
             roll = int(form.get("roll", ""))
@@ -291,95 +297,55 @@ def index():
 @app.route("/view_students")
 @admin_required
 def view_students():
-    search_query = request.args.get("q", "").strip()[:100]
-    sort_by = request.args.get("sort", "roll")
-    sort_columns = {
-        "roll": "roll_number ASC",
-        "name": "LOWER(name) ASC, roll_number ASC",
-        "average": "((COALESCE(math, 0) + COALESCE(science, 0) + COALESCE(english, 0)) / 3.0) DESC, roll_number ASC",
-    }
-    order_clause = sort_columns.get(sort_by, sort_columns["roll"])
-    if sort_by not in sort_columns:
-        sort_by = "roll"
-
+    q=request.args.get("q","").strip()[:100]
+    org=request.args.get("organization_id","all")
+    standard=request.args.get("standard","").strip()[:40]
+    semester=request.args.get("semester","").strip()[:20]
+    sort=request.args.get("sort","roll")
+    order={"roll":"roll_number ASC","name":"LOWER(name) ASC","average":"((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0) DESC"}.get(sort,"roll_number ASC")
+    try: page=max(1,int(request.args.get("page","1")))
+    except (TypeError,ValueError): page=1
+    conn=get_db_connection(); cur=conn.cursor()
     try:
-        page = max(1, int(request.args.get("page", "1")))
-    except (TypeError, ValueError):
-        page = 1
-    per_page = 20
-    offset = (page - 1) * per_page
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        if search_query:
-            search_pattern = f"%{search_query}%"
-            cur.execute(
-                """
-                SELECT COUNT(*)
-                FROM students
-                WHERE CAST(roll_number AS TEXT) ILIKE %s OR name ILIKE %s
-                """,
-                (search_pattern, search_pattern),
-            )
+        cur.execute("SELECT id,name FROM organizations WHERE status='approved' ORDER BY name")
+        organizations=cur.fetchall()
+        cur.execute("SELECT standard FROM students WHERE standard IS NOT NULL AND standard<>'' UNION SELECT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY 1")
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT semester FROM students WHERE semester IS NOT NULL AND semester<>'' UNION SELECT semester FROM organization_student_profiles WHERE semester IS NOT NULL AND semester<>'' ORDER BY 1")
+        semesters=[x[0] for x in cur.fetchall()]
+        if org=="admin":
+            order = {"roll":"roll_number ASC","name":"LOWER(name) ASC","average":"((COALESCE(math,0)+COALESCE(science,0)+COALESCE(english,0))/3.0) DESC"}.get(sort,"roll_number ASC")
+            clauses=[]; params=[]
+            if q: clauses.append("(CAST(roll_number AS TEXT) ILIKE %s OR name ILIKE %s)"); params += [f"%{q}%"]*2
+            if standard: clauses.append("standard=%s"); params.append(standard)
+            if semester: clauses.append("semester=%s"); params.append(semester)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            cur.execute("SELECT COUNT(*) FROM students"+where,tuple(params)); total=cur.fetchone()[0]
+            pages=max(1,(total+19)//20); page=min(page,pages); offset=(page-1)*20
+            cur.execute(f"SELECT roll_number,name,math,science,english,standard,semester,NULL::TEXT FROM students{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
         else:
-            cur.execute("SELECT COUNT(*) FROM students")
-        total_students = cur.fetchone()[0]
-        total_pages = max(1, (total_students + per_page - 1) // per_page)
-        page = min(page, total_pages)
-        offset = (page - 1) * per_page
-
-        if search_query:
-            cur.execute(
-                f"""
-                SELECT roll_number, name, math, science, english
-                FROM students
-                WHERE CAST(roll_number AS TEXT) ILIKE %s OR name ILIKE %s
-                ORDER BY {order_clause}
-                LIMIT %s OFFSET %s
-                """,
-                (search_pattern, search_pattern, per_page, offset),
-            )
-        else:
-            cur.execute(
-                f"""
-                SELECT roll_number, name, math, science, english
-                FROM students
-                ORDER BY {order_clause}
-                LIMIT %s OFFSET %s
-                """,
-                (per_page, offset),
-            )
-        students = cur.fetchall()
+            order = {"roll":"s.roll_number ASC","name":"LOWER(s.name) ASC","average":"((COALESCE(s.math,0)+COALESCE(s.science,0)+COALESCE(s.english,0))/3.0) DESC"}.get(sort,"s.roll_number ASC")
+            clauses=[]; params=[]
+            if org!="all":
+                try: clauses.append("s.organization_id=%s"); params.append(int(org))
+                except ValueError: org="all"
+            if q: clauses.append("(s.roll_number ILIKE %s OR s.name ILIKE %s)"); params += [f"%{q}%"]*2
+            if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+            if semester: clauses.append("p.semester=%s"); params.append(semester)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            base=" FROM organization_students s LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id JOIN organizations o ON o.id=s.organization_id"
+            cur.execute("SELECT COUNT(*)"+base+where,tuple(params)); total=cur.fetchone()[0]
+            pages=max(1,(total+19)//20); page=min(page,pages); offset=(page-1)*20
+            cur.execute(f"SELECT s.roll_number,s.name,s.math,s.science,s.english,p.admission_standard,p.semester,o.name {base}{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
+        rows=cur.fetchall()
     finally:
-        cur.close()
-        conn.close()
-
-    student_data = []
-    for student in students:
-        average = calculate_average([student[2], student[3], student[4]])
-        student_data.append({
-            "roll": student[0],
-            "name": student[1],
-            "math": student[2],
-            "science": student[3],
-            "english": student[4],
-            "average": average,
-            "grade": calculate_grade(average),
-        })
-
-    return render_template(
-        "students/view_students.html",
-        students=student_data,
-        search_query=search_query,
-        sort_by=sort_by,
-        page=page,
-        per_page=per_page,
-        total_students=total_students,
-        total_pages=total_pages,
-        start_index=offset + 1 if total_students else 0,
-        end_index=offset + len(student_data),
-    )
+        cur.close(); conn.close()
+    students=[]
+    for r in rows:
+        avg=calculate_average(r[2:5])
+        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"standard":r[5] if len(r)>5 else None,"semester":r[6] if len(r)>6 else None,"organization":r[7] if len(r)>7 else None,"average":avg,"grade":calculate_grade(avg)})
+    offset=(page-1)*20
+    return render_template("students/view_students.html",students=students,search_query=q,sort_by=sort,page=page,per_page=20,total_students=total,total_pages=pages,start_index=offset+1 if total else 0,end_index=offset+len(students),organizations=organizations,selected_org=org,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 @app.route("/add_student", methods=["GET", "POST"])
 @admin_required
@@ -400,15 +366,17 @@ def add_student():
             cur.execute(
                 """
                 INSERT INTO students
-                (roll_number, name, math, science, english)
-                VALUES (%s, %s, %s, %s, %s)
+                (roll_number, name, math, science, english, standard, semester)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     student_form["roll"],
                     student_form["name"],
                     student_form["math"],
                     student_form["science"],
-                    student_form["english"]
+                    student_form["english"],
+                    student_form.get("standard"),
+                    student_form.get("semester")
                 )
             )
 
@@ -511,7 +479,9 @@ def edit_student(roll):
                 name=%s,
                 math=%s,
                 science=%s,
-                english=%s
+                english=%s,
+                standard=%s,
+                semester=%s
             WHERE roll_number=%s
             """,
             (
@@ -519,6 +489,8 @@ def edit_student(roll):
                 student_form["math"],
                 student_form["science"],
                 student_form["english"],
+                student_form["standard"],
+                student_form["semester"],
                 roll
             )
         )
@@ -548,7 +520,9 @@ def edit_student(roll):
             name,
             math,
             science,
-            english
+            english,
+            standard,
+            semester
         FROM students
         WHERE roll_number=%s
         """,
@@ -568,7 +542,9 @@ def edit_student(roll):
         "name": student[1],
         "math": student[2],
         "science": student[3],
-        "english": student[4]
+        "english": student[4],
+        "standard": student[5],
+        "semester": student[6]
     }
 
     return render_template(
@@ -894,90 +870,53 @@ def download_student_result(roll):
 @app.route("/analytics")
 @admin_required
 def analytics():
-    conn = get_db_connection()
-    cur = conn.cursor()
+    org=request.args.get("organization_id","all")
+    standard=request.args.get("standard","").strip()[:40]
+    semester=request.args.get("semester","").strip()[:20]
+    conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute("""
-            SELECT roll_number, name, math, science, english
-            FROM students
-            ORDER BY roll_number
-        """)
-        records = cur.fetchall()
-        cur.execute(
-            """SELECT academic_year, ROUND(AVG(marks), 2)
-               FROM student_assessments
-               GROUP BY academic_year ORDER BY academic_year"""
-        )
-        assessment_trends = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-
-    students = []
-    performance_bands = {"Below 40": 0, "40–59": 0, "60–79": 0, "80–100": 0}
-    subject_totals = {"Math": [], "Science": [], "English": []}
-    grade_counts = {"A1": 0, "A2": 0, "B1": 0, "B2": 0,
-                    "C1": 0, "C2": 0, "D": 0, "F": 0}
-
-    for row in records:
-        marks = row[2:5]
-        average = calculate_average(marks)
-        grade = calculate_grade(average)
-        students.append({
-            "roll": row[0], "name": row[1],
-            "math": row[2], "science": row[3], "english": row[4],
-            "average": average, "grade": grade
-        })
-        grade_counts[grade] += 1
-        if average < 40:
-            performance_bands["Below 40"] += 1
-        elif average < 60:
-            performance_bands["40–59"] += 1
-        elif average < 80:
-            performance_bands["60–79"] += 1
+        cur.execute("SELECT id,name FROM organizations WHERE status='approved' ORDER BY name")
+        organizations=cur.fetchall()
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard")
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE semester IS NOT NULL AND semester<>'' ORDER BY semester")
+        semesters=[x[0] for x in cur.fetchall()]
+        clauses=[]; params=[]
+        if org=="admin":
+            if standard: clauses.append("standard=%s"); params.append(standard)
+            if semester: clauses.append("semester=%s"); params.append(semester)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            cur.execute("SELECT roll_number,name,math,science,english FROM students"+where+" ORDER BY roll_number",tuple(params))
+            records=cur.fetchall()
+            cur.execute("SELECT academic_year,ROUND(AVG(marks),2) FROM student_assessments GROUP BY academic_year ORDER BY academic_year")
+            trends=cur.fetchall()
         else:
-            performance_bands["80–100"] += 1
-        for label, mark in zip(subject_totals, marks):
-            if mark is not None:
-                subject_totals[label].append(mark)
-
-    total_students = len(students)
-    overall_average = calculate_average(
-        [s["average"] for s in students]
-    )
-    try:
-        current_pass_mark = int(session.get("pass_mark", 33))
-    except (TypeError, ValueError):
-        current_pass_mark = 33
-    passed = sum(
-        1 for s in students
-        if all(mark is not None and mark >= current_pass_mark
-               for mark in (s["math"], s["science"], s["english"]))
-    )
-    failed = total_students - passed
-    subject_averages = {
-        label: calculate_average(values)
-        for label, values in subject_totals.items()
-    }
-    top_students = sorted(
-        students, key=lambda item: item["average"], reverse=True
-    )[:5]
-
-    return render_template(
-        "analytics/dashboard.html",
-        total_students=total_students,
-        overall_average=overall_average,
-        passed=passed,
-        failed=failed,
-        subject_averages=subject_averages,
-        grade_counts=grade_counts,
-        performance_bands=performance_bands,
-        assessment_trends=assessment_trends,
-        top_students=top_students
-    )
-
-
-
+            if org!="all":
+                try: clauses.append("s.organization_id=%s"); params.append(int(org))
+                except ValueError: org="all"
+            if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+            if semester: clauses.append("p.semester=%s"); params.append(semester)
+            where=(" WHERE "+" AND ".join(clauses)) if clauses else ""
+            cur.execute("SELECT s.roll_number,s.name,s.math,s.science,s.english FROM organization_students s LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id"+where+" ORDER BY s.roll_number",tuple(params))
+            records=cur.fetchall(); trends=[]
+    finally:
+        cur.close(); conn.close()
+    students=[]; bands={"Below 40":0,"40–59":0,"60–79":0,"80–100":0}
+    totals={"Math":[],"Science":[],"English":[]}
+    grades={"A1":0,"A2":0,"B1":0,"B2":0,"C1":0,"C2":0,"D":0,"F":0}
+    for r in records:
+        marks=r[2:5]; avg=calculate_average(marks); grade=calculate_grade(avg)
+        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"average":avg,"grade":grade})
+        grades[grade]+=1
+        bands["Below 40" if avg<40 else "40–59" if avg<60 else "60–79" if avg<80 else "80–100"]+=1
+        for label,mark in zip(totals,marks):
+            if mark is not None: totals[label].append(mark)
+    count=len(students); overall=calculate_average([x["average"] for x in students])
+    try: pass_mark=int(session.get("pass_mark",33))
+    except (TypeError,ValueError): pass_mark=33
+    passed=sum(1 for x in students if all(m is not None and m>=pass_mark for m in (x["math"],x["science"],x["english"])))
+    subjects={k:calculate_average(v) for k,v in totals.items()}
+    return render_template("analytics/dashboard.html",total_students=count,overall_average=overall,passed=passed,failed=count-passed,subject_averages=subjects,grade_counts=grades,performance_bands=bands,assessment_trends=trends,top_students=sorted(students,key=lambda x:x["average"],reverse=True)[:5],organizations=organizations,selected_org=org,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 def _read_uploaded_student_file(upload):
     """Parse a small CSV/XLSX import without trusting the uploaded contents."""
@@ -1875,31 +1814,29 @@ def organization_dashboard():
 @app.route("/organization/students")
 @organization_required
 def organization_students():
-    oid = session["organization_id"]
-    search = request.args.get("q", "").strip()[:100]
-    conn = get_db_connection(); cur = conn.cursor()
+    oid=session["organization_id"]; search=request.args.get("q","").strip()[:100]
+    standard=request.args.get("standard","").strip()[:40]; semester=request.args.get("semester","").strip()[:20]
+    conn=get_db_connection(); cur=conn.cursor()
     try:
-        subjects = _organization_subjects(cur, oid)
-        if search:
-            pattern = f"%{search}%"
-            cur.execute("""SELECT id,roll_number,name FROM organization_students
-                WHERE organization_id=%s AND (roll_number ILIKE %s OR name ILIKE %s)
-                ORDER BY roll_number LIMIT 200""", (oid,pattern,pattern))
-        else:
-            cur.execute("""SELECT id,roll_number,name FROM organization_students
-                WHERE organization_id=%s ORDER BY roll_number LIMIT 200""", (oid,))
-        rows = cur.fetchall()
-        students = []
-        for sid, roll, name in rows:
-            cur.execute("""SELECT subject_id,marks FROM organization_student_subject_marks
-                WHERE organization_id=%s AND student_id=%s""", (oid,sid))
-            marks = {int(k):float(v) for k,v in cur.fetchall()}
-            vals = list(marks.values())
-            students.append({"id":sid,"roll":roll,"name":name,"marks":marks,
-                "average":round(sum(vals)/len(vals),2) if vals else 0})
-    finally:
-        cur.close(); conn.close()
-    return render_template("organizations/students.html",students=students,search=search,subjects=subjects)
+        subjects=_organization_subjects(cur,oid)
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard",(oid,))
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester",(oid,))
+        semesters=[x[0] for x in cur.fetchall()]
+        clauses=["s.organization_id=%s"]; params=[oid]
+        if search: clauses.append("(s.roll_number ILIKE %s OR s.name ILIKE %s)"); params += [f"%{search}%"]*2
+        if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+        if semester: clauses.append("p.semester=%s"); params.append(semester)
+        cur.execute("""SELECT s.id,s.roll_number,s.name FROM organization_students s
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE """+" AND ".join(clauses)+" ORDER BY s.roll_number LIMIT 200",tuple(params))
+        rows=cur.fetchall(); students=[]
+        for sid,roll,name in rows:
+            cur.execute("SELECT subject_id,marks FROM organization_student_subject_marks WHERE organization_id=%s AND student_id=%s",(oid,sid))
+            marks={int(k):float(v) for k,v in cur.fetchall()}; vals=list(marks.values())
+            students.append({"id":sid,"roll":roll,"name":name,"marks":marks,"average":round(sum(vals)/len(vals),2) if vals else 0})
+    finally: cur.close(); conn.close()
+    return render_template("organizations/students.html",students=students,search=search,subjects=subjects,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 
 @app.route("/organization/students/add", methods=["GET","POST"])
@@ -1910,13 +1847,14 @@ def organization_add_student():
         subjects=_organization_subjects(cur,oid)
         if request.method=="POST":
             roll=(request.form.get("roll") or "").strip(); name=(request.form.get("name") or "").strip()
+            standard=(request.form.get("standard") or "").strip()[:40] or None
+            semester=(request.form.get("semester") or "").strip()[:20] or None
             if not roll or len(roll)>40 or not name or len(name)>100:
                 flash("Enter a valid roll number and student name.","danger")
                 return render_template("organizations/add_student.html",subjects=subjects),400
             marks,error=_organization_subject_values(request.form,subjects)
             if error:
-                flash(error,"danger")
-                return render_template("organizations/add_student.html",subjects=subjects),400
+                flash(error,"danger"); return render_template("organizations/add_student.html",subjects=subjects),400
             by_name={n.lower():marks[i] for i,n in subjects}
             try:
                 cur.execute("""INSERT INTO organization_students
@@ -1925,12 +1863,17 @@ def organization_add_student():
                     (oid,roll,name,by_name.get("math",0),by_name.get("science",0),by_name.get("english",0)))
                 sid=cur.fetchone()[0]
                 _save_organization_subject_values(cur,oid,sid,marks)
+                cur.execute("""INSERT INTO organization_student_profiles
+                    (organization_id,student_id,admission_standard,semester)
+                    VALUES (%s,%s,%s,%s)
+                    ON CONFLICT (organization_id,student_id) DO UPDATE SET
+                    admission_standard=EXCLUDED.admission_standard,semester=EXCLUDED.semester,
+                    updated_at=CURRENT_TIMESTAMP""",(oid,sid,standard,semester))
                 conn.commit(); flash("Student added successfully.","success")
                 return redirect(url_for("organization_students"))
             except psycopg2.errors.UniqueViolation:
                 conn.rollback(); flash("This roll number is already used in your organization.","danger")
-    finally:
-        cur.close(); conn.close()
+    finally: cur.close(); conn.close()
     return render_template("organizations/add_student.html",subjects=subjects)
 
 
@@ -2381,30 +2324,44 @@ def organization_attendance():
 @app.route("/organization/analytics")
 @organization_required
 def organization_analytics():
-    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
+    oid=session["organization_id"]
+    standard=request.args.get("standard","").strip()[:40]
+    semester=request.args.get("semester","").strip()[:20]
+    conn=get_db_connection(); cur=conn.cursor()
     try:
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard",(oid,))
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester",(oid,))
+        semesters=[x[0] for x in cur.fetchall()]
+        clauses=["s.organization_id=%s"]; params=[oid]
+        if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+        if semester: clauses.append("p.semester=%s"); params.append(semester)
+        where=" AND ".join(clauses)
         cur.execute("""SELECT COUNT(DISTINCT s.id),COALESCE(ROUND(AVG(m.marks),2),0),
             COALESCE(MAX(avg_marks.avg),0),COALESCE(MIN(avg_marks.avg),0)
             FROM organization_students s
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
             LEFT JOIN organization_student_subject_marks m ON m.organization_id=s.organization_id AND m.student_id=s.id
-            LEFT JOIN (SELECT organization_id,student_id,AVG(marks) AS avg
-                FROM organization_student_subject_marks GROUP BY organization_id,student_id) avg_marks
-              ON avg_marks.organization_id=s.organization_id AND avg_marks.student_id=s.id
-            WHERE s.organization_id=%s""",(oid,))
-        summary=cur.fetchone()
-        subjects=_organization_subjects(cur,oid)
-        subject_averages=[]
+            LEFT JOIN (SELECT organization_id,student_id,AVG(marks) AS avg FROM organization_student_subject_marks GROUP BY organization_id,student_id) avg_marks
+            ON avg_marks.organization_id=s.organization_id AND avg_marks.student_id=s.id
+            WHERE """+where,tuple(params))
+        summary=cur.fetchone(); subjects=_organization_subjects(cur,oid); subject_averages=[]
         for subject_id,subject_name in subjects:
-            cur.execute("""SELECT COALESCE(ROUND(AVG(marks),2),0)
-                FROM organization_student_subject_marks WHERE organization_id=%s AND subject_id=%s""",(oid,subject_id))
+            cur.execute("""SELECT COALESCE(ROUND(AVG(m.marks),2),0)
+                FROM organization_student_subject_marks m JOIN organization_students s
+                ON s.organization_id=m.organization_id AND s.id=m.student_id
+                LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+                WHERE """+where+" AND m.subject_id=%s",tuple(params+[subject_id]))
             subject_averages.append((subject_name,cur.fetchone()[0]))
-        cur.execute("""SELECT status,COUNT(*) FROM organization_attendance
-            WHERE organization_id=%s AND attendance_date=CURRENT_DATE GROUP BY status""",(oid,))
+        cur.execute("""SELECT a.status,COUNT(*) FROM organization_attendance a
+            JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE """+where+" AND a.attendance_date=CURRENT_DATE GROUP BY a.status",tuple(params))
         attendance_counts=dict(cur.fetchall())
-    finally:
-        cur.close(); conn.close()
-    return render_template("organizations/analytics.html",summary=summary,
-        subjects=subject_averages,attendance_counts=attendance_counts)
+    finally: cur.close(); conn.close()
+    return render_template("organizations/analytics.html",summary=summary,subjects=subject_averages,
+        attendance_counts=attendance_counts,standards=standards,semesters=semesters,
+        selected_standard=standard,selected_semester=semester)
 
 
 @app.route("/organization/settings", methods=["GET", "POST"])

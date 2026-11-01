@@ -32,6 +32,9 @@
                     <option value="average" {% if sort_by == "average" %}selected{% endif %}>Average (highest)</option>
                 </select>
             </div>
+            <div class="col-12 col-sm-6 col-md-3"><label class="form-label small fw-semibold">Organization</label><select class="form-select" name="organization_id"><option value="all" {% if selected_org == "all" %}selected{% endif %}>All Organizations</option><option value="admin" {% if selected_org == "admin" %}selected{% endif %}>Admin Records</option>{% for org in organizations %}<option value="{{ org[0] }}" {% if selected_org|string == org[0]|string %}selected{% endif %}>{{ org[1] }}</option>{% endfor %}</select></div>
+            <div class="col-6 col-md-2"><label class="form-label small fw-semibold">Class / Standard</label><select class="form-select" name="standard"><option value="">All Classes</option>{% for value in standards %}<option value="{{ value }}" {% if selected_standard == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+            <div class="col-6 col-md-2"><label class="form-label small fw-semibold">Semester</label><select class="form-select" name="semester"><option value="">All Semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
             <div class="col-12 col-sm-6 col-md-auto d-flex gap-2">
                 <button class="btn btn-primary flex-grow-1" type="submit">Apply</button>
                 <a class="btn btn-outline-secondary" href="{{ url_for('view_students') }}">Clear</a>
@@ -52,7 +55,7 @@
         <div class="table-responsive">
             <table class="table align-middle directory-table mb-0">
                 <thead><tr>
-                    <th scope="col">ROLL NO.</th><th scope="col">STUDENT</th>
+                    <th scope="col">ROLL NO.</th><th scope="col">STUDENT</th><th scope="col">ORGANIZATION</th><th scope="col">CLASS</th><th scope="col">SEMESTER</th>
                     <th scope="col">MATH</th><th scope="col">SCIENCE</th>
                     <th scope="col">ENGLISH</th><th scope="col">AVERAGE</th>
                     <th scope="col">GRADE</th><th scope="col" class="text-end">ACTION</th>
@@ -61,19 +64,19 @@
                 {% for s in students %}
                     <tr>
                         <td class="fw-semibold">{{ s.roll }}</td>
-                        <td><a class="student-name" href="{{ url_for('student_details', roll=s.roll) }}">{{ s.name }}</a>
-                            <div class="student-meta">Student record</div></td>
+                        <td>{{ s.name }}<div class="student-meta">Student record</div></td>
+                        <td>{{ s.organization or "Admin Records" }}</td><td>{{ s.standard or "—" }}</td><td>{{ s.semester or "—" }}</td>
                         <td>{{ s.math if s.math is not none else "—" }}</td>
                         <td>{{ s.science if s.science is not none else "—" }}</td>
                         <td>{{ s.english if s.english is not none else "—" }}</td>
                         <td><strong>{{ s.average }}%</strong></td>
                         <td><span class="grade-pill">{{ s.grade }}</span></td>
-                        <td class="text-end"><a class="btn btn-sm btn-outline-primary"
+                        <td class="text-end">{% if not s.organization %}<a class="btn btn-sm btn-outline-primary"
                             href="{{ url_for('student_details', roll=s.roll) }}" aria-label="View {{ s.name }}">
-                            View <i class="bi bi-arrow-up-right ms-1"></i></a></td>
+                            View <i class="bi bi-arrow-up-right ms-1"></i></a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="8">
+                    <tr><td colspan="11">
                         <div class="empty-state py-5">
                             <span class="empty-icon"><i class="bi bi-search"></i></span>
                             <h3>No matching students</h3>
@@ -90,13 +93,13 @@
             <span class="text-muted small">Page {{ page }} of {{ total_pages }}</span>
             <ul class="pagination mb-0">
                 <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, page=page-1) }}"
+                    <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, organization_id=selected_org, standard=selected_standard, semester=selected_semester, page=page-1) }}"
                         aria-label="Previous page">Previous</a>
                 </li>
                 {% for page_number in range(1, total_pages + 1) %}
                     {% if page_number == 1 or page_number == total_pages or (page_number >= page - 1 and page_number <= page + 1) %}
                     <li class="page-item {% if page_number == page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, page=page_number) }}"
+                        <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, organization_id=selected_org, standard=selected_standard, semester=selected_semester, page=page_number) }}"
                             {% if page_number == page %}aria-current="page"{% endif %}>{{ page_number }}</a>
                     </li>
                     {% elif page_number == page - 2 or page_number == page + 2 %}
@@ -104,7 +107,7 @@
                     {% endif %}
                 {% endfor %}
                 <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, page=page+1) }}"
+                    <a class="page-link" href="{{ url_for('view_students', q=search_query, sort=sort_by, organization_id=selected_org, standard=selected_standard, semester=selected_semester, page=page+1) }}"
                         aria-label="Next page">Next</a>
                 </li>
             </ul>

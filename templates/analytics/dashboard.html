@@ -9,7 +9,12 @@
         <p class="text-muted mb-0">A summary of student results and subject performance.</p>
     </div>
 
-    <div class="row g-3 mb-4">
+    <form method="GET" action="{{ url_for('analytics') }}" class="card border-0 shadow-sm p-3 mb-4"><div class="row g-3 align-items-end">
+<div class="col-md-4"><label class="form-label">Organization</label><select class="form-select" name="organization_id"><option value="all" {% if selected_org == "all" %}selected{% endif %}>All Organizations</option><option value="admin" {% if selected_org == "admin" %}selected{% endif %}>Admin Records</option>{% for org in organizations %}<option value="{{ org[0] }}" {% if selected_org|string == org[0]|string %}selected{% endif %}>{{ org[1] }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Class / Standard</label><select class="form-select" name="standard"><option value="">All Classes</option>{% for value in standards %}<option value="{{ value }}" {% if selected_standard == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><label class="form-label">Semester</label><select class="form-select" name="semester"><option value="">All Semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+<div class="col-md-2 d-flex gap-2"><button class="btn btn-primary">Apply</button><a class="btn btn-outline-secondary" href="{{ url_for('analytics') }}">Clear</a></div></div></form>
+<div class="row g-3 mb-4">
         <div class="col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100"><div class="card-body">
                 <p class="text-muted mb-1">Total Students</p>

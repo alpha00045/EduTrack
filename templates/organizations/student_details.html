@@ -11,6 +11,7 @@
       <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:112px;height:112px"><i class="bi bi-person-fill fs-1"></i></div>
       {% endif %}
       <div class="flex-grow-1"><span class="badge text-bg-primary mb-2">Student profile</span><h1 class="h3 fw-bold mb-1">{{ student.name }}</h1><div class="text-muted">Roll number: {{ student.roll }}</div><div class="text-muted small">Current average: {{ student.average }}%</div></div>
+      <a class="btn btn-outline-secondary" href="{{ url_for('organization_download_student_result',roll=student.roll) }}">Download result PDF</a>
       <a class="btn btn-outline-primary" href="{{ url_for('organization_edit_student',roll=student.roll) }}">Edit marks</a>
       <a class="btn btn-primary" href="{{ url_for('organization_edit_student_profile',roll=student.roll) }}"><i class="bi bi-pencil me-1"></i>Edit full profile</a>
     </div>

@@ -1806,31 +1806,29 @@ def organization_dashboard():
 @app.route("/organization/students")
 @organization_required
 def organization_students():
-    oid = session["organization_id"]
-    search = request.args.get("q", "").strip()[:100]
-    conn = get_db_connection(); cur = conn.cursor()
+    oid=session["organization_id"]; search=request.args.get("q","").strip()[:100]
+    standard=request.args.get("standard","").strip()[:40]; semester=request.args.get("semester","").strip()[:20]
+    conn=get_db_connection(); cur=conn.cursor()
     try:
-        subjects = _organization_subjects(cur, oid)
-        if search:
-            pattern = f"%{search}%"
-            cur.execute("""SELECT id,roll_number,name FROM organization_students
-                WHERE organization_id=%s AND (roll_number ILIKE %s OR name ILIKE %s)
-                ORDER BY roll_number LIMIT 200""", (oid,pattern,pattern))
-        else:
-            cur.execute("""SELECT id,roll_number,name FROM organization_students
-                WHERE organization_id=%s ORDER BY roll_number LIMIT 200""", (oid,))
-        rows = cur.fetchall()
-        students = []
-        for sid, roll, name in rows:
-            cur.execute("""SELECT subject_id,marks FROM organization_student_subject_marks
-                WHERE organization_id=%s AND student_id=%s""", (oid,sid))
-            marks = {int(k):float(v) for k,v in cur.fetchall()}
-            vals = list(marks.values())
-            students.append({"id":sid,"roll":roll,"name":name,"marks":marks,
-                "average":round(sum(vals)/len(vals),2) if vals else 0})
-    finally:
-        cur.close(); conn.close()
-    return render_template("organizations/students.html",students=students,search=search,subjects=subjects)
+        subjects=_organization_subjects(cur,oid)
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard",(oid,))
+        standards=[x[0] for x in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester",(oid,))
+        semesters=[x[0] for x in cur.fetchall()]
+        clauses=["s.organization_id=%s"]; params=[oid]
+        if search: clauses.append("(s.roll_number ILIKE %s OR s.name ILIKE %s)"); params += [f"%{search}%"]*2
+        if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
+        if semester: clauses.append("p.semester=%s"); params.append(semester)
+        cur.execute("""SELECT s.id,s.roll_number,s.name FROM organization_students s
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE """+" AND ".join(clauses)+" ORDER BY s.roll_number LIMIT 200",tuple(params))
+        rows=cur.fetchall(); students=[]
+        for sid,roll,name in rows:
+            cur.execute("SELECT subject_id,marks FROM organization_student_subject_marks WHERE organization_id=%s AND student_id=%s",(oid,sid))
+            marks={int(k):float(v) for k,v in cur.fetchall()}; vals=list(marks.values())
+            students.append({"id":sid,"roll":roll,"name":name,"marks":marks,"average":round(sum(vals)/len(vals),2) if vals else 0})
+    finally: cur.close(); conn.close()
+    return render_template("organizations/students.html",students=students,search=search,subjects=subjects,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 
 @app.route("/organization/students/add", methods=["GET","POST"])
@@ -1841,13 +1839,14 @@ def organization_add_student():
         subjects=_organization_subjects(cur,oid)
         if request.method=="POST":
             roll=(request.form.get("roll") or "").strip(); name=(request.form.get("name") or "").strip()
+            standard=(request.form.get("standard") or "").strip()[:40] or None
+            semester=(request.form.get("semester") or "").strip()[:20] or None
             if not roll or len(roll)>40 or not name or len(name)>100:
                 flash("Enter a valid roll number and student name.","danger")
                 return render_template("organizations/add_student.html",subjects=subjects),400
             marks,error=_organization_subject_values(request.form,subjects)
             if error:
-                flash(error,"danger")
-                return render_template("organizations/add_student.html",subjects=subjects),400
+                flash(error,"danger"); return render_template("organizations/add_student.html",subjects=subjects),400
             by_name={n.lower():marks[i] for i,n in subjects}
             try:
                 cur.execute("""INSERT INTO organization_students
@@ -1856,12 +1855,17 @@ def organization_add_student():
                     (oid,roll,name,by_name.get("math",0),by_name.get("science",0),by_name.get("english",0)))
                 sid=cur.fetchone()[0]
                 _save_organization_subject_values(cur,oid,sid,marks)
+                cur.execute("""INSERT INTO organization_student_profiles
+                    (organization_id,student_id,admission_standard,semester)
+                    VALUES (%s,%s,%s,%s)
+                    ON CONFLICT (organization_id,student_id) DO UPDATE SET
+                    admission_standard=EXCLUDED.admission_standard,semester=EXCLUDED.semester,
+                    updated_at=CURRENT_TIMESTAMP""",(oid,sid,standard,semester))
                 conn.commit(); flash("Student added successfully.","success")
                 return redirect(url_for("organization_students"))
             except psycopg2.errors.UniqueViolation:
                 conn.rollback(); flash("This roll number is already used in your organization.","danger")
-    finally:
-        cur.close(); conn.close()
+    finally: cur.close(); conn.close()
     return render_template("organizations/add_student.html",subjects=subjects)
 
 

@@ -336,7 +336,7 @@ def view_students():
             base=" FROM organization_students s LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id JOIN organizations o ON o.id=s.organization_id"
             cur.execute("SELECT COUNT(*)"+base+where,tuple(params)); total=cur.fetchone()[0]
             pages=max(1,(total+19)//20); page=min(page,pages); offset=(page-1)*20
-            cur.execute(f"SELECT s.roll_number,s.name,s.math,s.science,s.english,p.admission_standard,p.semester,o.name {base}{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
+            cur.execute(f"SELECT s.roll_number,s.name,s.math,s.science,s.english,p.admission_standard,p.semester,o.organization_name {base}{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
         rows=cur.fetchall()
     finally:
         cur.close(); conn.close()

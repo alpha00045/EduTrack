@@ -1758,6 +1758,31 @@ def organization_logout():
     return redirect(url_for("organization_login"))
 
 
+def _organization_subjects(cur, organization_id):
+    cur.execute("SELECT id, subject_name FROM organization_subjects WHERE organization_id=%s ORDER BY subject_name", (organization_id,))
+    return cur.fetchall()
+
+def _organization_subject_values(form, subjects):
+    values = {}
+    for subject_id, subject_name in subjects:
+        try:
+            mark = float((form.get(f"subject_{subject_id}") or "").strip())
+        except (TypeError, ValueError):
+            return None, f"Enter marks for {subject_name}."
+        if not 0 <= mark <= 100:
+            return None, f"{subject_name} marks must be between 0 and 100."
+        values[subject_id] = mark
+    return values, None
+
+def _save_organization_subject_values(cur, organization_id, student_id, values):
+    for subject_id, mark in values.items():
+        cur.execute("""INSERT INTO organization_student_subject_marks
+            (organization_id,student_id,subject_id,marks) VALUES (%s,%s,%s,%s)
+            ON CONFLICT (organization_id,student_id,subject_id)
+            DO UPDATE SET marks=EXCLUDED.marks, updated_at=CURRENT_TIMESTAMP""",
+            (organization_id, student_id, subject_id, mark))
+
+
 @app.route("/organization")
 @organization_required
 def organization_dashboard():
@@ -1805,70 +1830,63 @@ def organization_dashboard():
 @app.route("/organization/students")
 @organization_required
 def organization_students():
-    organization_id = session["organization_id"]
+    oid = session["organization_id"]
     search = request.args.get("q", "").strip()[:100]
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = get_db_connection(); cur = conn.cursor()
     try:
+        subjects = _organization_subjects(cur, oid)
         if search:
             pattern = f"%{search}%"
-            cur.execute(
-                """SELECT roll_number, name, math, science, english
-                   FROM organization_students
-                   WHERE organization_id=%s
-                     AND (roll_number ILIKE %s OR name ILIKE %s)
-                   ORDER BY roll_number LIMIT 200""",
-                (organization_id, pattern, pattern),
-            )
+            cur.execute("""SELECT id,roll_number,name FROM organization_students
+                WHERE organization_id=%s AND (roll_number ILIKE %s OR name ILIKE %s)
+                ORDER BY roll_number LIMIT 200""", (oid,pattern,pattern))
         else:
-            cur.execute(
-                """SELECT roll_number, name, math, science, english
-                   FROM organization_students
-                   WHERE organization_id=%s ORDER BY roll_number LIMIT 200""",
-                (organization_id,),
-            )
+            cur.execute("""SELECT id,roll_number,name FROM organization_students
+                WHERE organization_id=%s ORDER BY roll_number LIMIT 200""", (oid,))
         rows = cur.fetchall()
+        students = []
+        for sid, roll, name in rows:
+            cur.execute("""SELECT subject_id,marks FROM organization_student_subject_marks
+                WHERE organization_id=%s AND student_id=%s""", (oid,sid))
+            marks = {int(k):float(v) for k,v in cur.fetchall()}
+            vals = list(marks.values())
+            students.append({"id":sid,"roll":roll,"name":name,"marks":marks,
+                "average":round(sum(vals)/len(vals),2) if vals else 0})
     finally:
-        cur.close()
-        conn.close()
-    students = [{
-        "roll": row[0], "name": row[1],
-        "math": row[2], "science": row[3], "english": row[4],
-        "average": calculate_average(row[2:5]),
-    } for row in rows]
-    return render_template("organizations/students.html", students=students, search=search)
+        cur.close(); conn.close()
+    return render_template("organizations/students.html",students=students,search=search,subjects=subjects)
 
 
-@app.route("/organization/students/add", methods=["GET", "POST"])
+@app.route("/organization/students/add", methods=["GET","POST"])
 @organization_required
 def organization_add_student():
-    if request.method == "POST":
-        form, error = validate_student_form(request.form)
-        if error:
-            flash(error, "danger")
-            return render_template("organizations/add_student.html"), 400
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                """INSERT INTO organization_students
-                   (organization_id, roll_number, name, math, science, english)
-                   VALUES (%s,%s,%s,%s,%s,%s)""",
-                (
-                    session["organization_id"], str(form["roll"]), form["name"],
-                    form["math"], form["science"], form["english"],
-                ),
-            )
-            conn.commit()
-            flash("Student added successfully.", "success")
-            return redirect(url_for("organization_students"))
-        except psycopg2.errors.UniqueViolation:
-            conn.rollback()
-            flash("This roll number is already used in your organization.", "danger")
-        finally:
-            cur.close()
-            conn.close()
-    return render_template("organizations/add_student.html")
+    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
+    try:
+        subjects=_organization_subjects(cur,oid)
+        if request.method=="POST":
+            roll=(request.form.get("roll") or "").strip(); name=(request.form.get("name") or "").strip()
+            if not roll or len(roll)>40 or not name or len(name)>100:
+                flash("Enter a valid roll number and student name.","danger")
+                return render_template("organizations/add_student.html",subjects=subjects),400
+            marks,error=_organization_subject_values(request.form,subjects)
+            if error:
+                flash(error,"danger")
+                return render_template("organizations/add_student.html",subjects=subjects),400
+            by_name={n.lower():marks[i] for i,n in subjects}
+            try:
+                cur.execute("""INSERT INTO organization_students
+                    (organization_id,roll_number,name,math,science,english)
+                    VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (oid,roll,name,by_name.get("math",0),by_name.get("science",0),by_name.get("english",0)))
+                sid=cur.fetchone()[0]
+                _save_organization_subject_values(cur,oid,sid,marks)
+                conn.commit(); flash("Student added successfully.","success")
+                return redirect(url_for("organization_students"))
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback(); flash("This roll number is already used in your organization.","danger")
+    finally:
+        cur.close(); conn.close()
+    return render_template("organizations/add_student.html",subjects=subjects)
 
 
 @app.route("/organization/students/<path:roll>")
@@ -2098,34 +2116,37 @@ def organization_add_assessment(roll):
 
 
 # Organization portal extensions. Every query is scoped by the active organization.
-@app.route("/organization/students/<path:roll>/edit", methods=["GET", "POST"])
+@app.route("/organization/students/<path:roll>/edit", methods=["GET","POST"])
 @organization_required
 def organization_edit_student(roll):
-    oid = session["organization_id"]
-    conn = get_db_connection()
-    cur = conn.cursor()
+    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute("""SELECT roll_number,name,math,science,english FROM organization_students
-                       WHERE organization_id=%s AND roll_number=%s""", (oid, roll))
-        row = cur.fetchone()
-        if not row:
-            abort(404)
-        if request.method == "POST":
-            form, error = validate_student_form(request.form, include_roll=False)
+        subjects=_organization_subjects(cur,oid)
+        cur.execute("SELECT id,name FROM organization_students WHERE organization_id=%s AND roll_number=%s",(oid,roll))
+        row=cur.fetchone()
+        if not row: abort(404)
+        sid,name=row
+        cur.execute("SELECT subject_id,marks FROM organization_student_subject_marks WHERE organization_id=%s AND student_id=%s",(oid,sid))
+        existing={int(k):float(v) for k,v in cur.fetchall()}
+        if request.method=="POST":
+            new_name=(request.form.get("name") or "").strip()
+            if not new_name or len(new_name)>100:
+                flash("Enter a valid student name.","danger")
+                return render_template("organizations/edit_student.html",student={"roll":roll,"name":name},subjects=subjects,marks=existing),400
+            marks,error=_organization_subject_values(request.form,subjects)
             if error:
-                flash(error, "danger")
-                return redirect(url_for("organization_edit_student", roll=roll))
+                flash(error,"danger")
+                return render_template("organizations/edit_student.html",student={"roll":roll,"name":name},subjects=subjects,marks=existing),400
+            by_name={n.lower():marks[i] for i,n in subjects}
             cur.execute("""UPDATE organization_students SET name=%s,math=%s,science=%s,english=%s,
-                           updated_at=CURRENT_TIMESTAMP WHERE organization_id=%s AND roll_number=%s""",
-                        (form["name"], form["math"], form["science"], form["english"], oid, roll))
-            conn.commit()
-            flash("Student record updated.", "success")
-            return redirect(url_for("organization_student_details", roll=roll))
+                updated_at=CURRENT_TIMESTAMP WHERE organization_id=%s AND id=%s""",
+                (new_name,by_name.get("math",0),by_name.get("science",0),by_name.get("english",0),oid,sid))
+            _save_organization_subject_values(cur,oid,sid,marks)
+            conn.commit(); flash("Student record updated.","success")
+            return redirect(url_for("organization_student_details",roll=roll))
     finally:
-        cur.close()
-        conn.close()
-    return render_template("organizations/edit_student.html",
-        student={"roll":row[0],"name":row[1],"math":row[2],"science":row[3],"english":row[4]})
+        cur.close(); conn.close()
+    return render_template("organizations/edit_student.html",student={"roll":roll,"name":name},subjects=subjects,marks=existing)
 
 
 @app.route("/organization/students/<path:roll>/delete", methods=["POST"])
@@ -2308,45 +2329,48 @@ def organization_analytics():
 
 
 
-@app.route("/organization/settings", methods=["GET", "POST"])
+@app.route("/organization/settings", methods=["GET","POST"])
 @organization_required
 def organization_settings():
-    oid = session["organization_id"]
-    conn = get_db_connection()
-    cur = conn.cursor()
+    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
     try:
-        if request.method == "POST":
-            try:
-                pass_mark = int(request.form.get("pass_mark", "33"))
-            except (TypeError, ValueError):
-                pass_mark = -1
-            if not 0 <= pass_mark <= 100:
-                flash("Pass mark must be between 0 and 100.", "danger")
+        if request.method=="POST":
+            action=request.form.get("action","save_settings")
+            if action=="add_subject":
+                name=(request.form.get("subject_name") or "").strip()
+                if not name or len(name)>80:
+                    flash("Subject name must be between 1 and 80 characters.","danger")
+                else:
+                    try:
+                        cur.execute("INSERT INTO organization_subjects (organization_id,subject_name) VALUES (%s,%s)",(oid,name))
+                        conn.commit(); flash(f"{name} added to your subjects.","success")
+                    except psycopg2.errors.UniqueViolation:
+                        conn.rollback(); flash("That subject already exists.","warning")
                 return redirect(url_for("organization_settings"))
-            cur.execute(
-                """INSERT INTO organization_settings (organization_id, setting_key, setting_value)
-                   VALUES (%s, 'pass_mark', %s)
-                   ON CONFLICT (organization_id, setting_key)
-                   DO UPDATE SET setting_value=EXCLUDED.setting_value, updated_at=CURRENT_TIMESTAMP""",
-                (oid, str(pass_mark)),
-            )
-            conn.commit()
-            session["pass_mark"] = pass_mark
-            flash("Organization settings saved.", "success")
+            if action=="delete_subject":
+                try: subject_id=int(request.form.get("subject_id",""))
+                except (TypeError,ValueError): abort(400)
+                cur.execute("""DELETE FROM organization_subjects WHERE organization_id=%s AND id=%s
+                    AND LOWER(subject_name) NOT IN ('math','science','english')""",(oid,subject_id))
+                if cur.rowcount: conn.commit(); flash("Subject removed with its marks.","success")
+                else: conn.rollback(); flash("Default subjects cannot be removed.","warning")
+                return redirect(url_for("organization_settings"))
+            try: pass_mark=int(request.form.get("pass_mark","33"))
+            except (TypeError,ValueError): pass_mark=-1
+            if not 0<=pass_mark<=100:
+                flash("Pass mark must be between 0 and 100.","danger")
+                return redirect(url_for("organization_settings"))
+            cur.execute("""INSERT INTO organization_settings (organization_id,setting_key,setting_value)
+                VALUES (%s,'pass_mark',%s) ON CONFLICT (organization_id,setting_key)
+                DO UPDATE SET setting_value=EXCLUDED.setting_value,updated_at=CURRENT_TIMESTAMP""",(oid,str(pass_mark)))
+            conn.commit(); session["pass_mark"]=pass_mark; flash("Organization settings saved.","success")
             return redirect(url_for("organization_settings"))
-        cur.execute(
-            """SELECT setting_value FROM organization_settings
-               WHERE organization_id=%s AND setting_key='pass_mark'""",
-            (oid,),
-        )
-        row = cur.fetchone()
+        cur.execute("SELECT setting_value FROM organization_settings WHERE organization_id=%s AND setting_key='pass_mark'",(oid,))
+        row=cur.fetchone(); subjects=_organization_subjects(cur,oid)
     finally:
-        cur.close()
-        conn.close()
-    pass_mark = int(row[0]) if row else 33
-    session["pass_mark"] = pass_mark
-    return render_template("organizations/settings.html", pass_mark=pass_mark)
-
+        cur.close(); conn.close()
+    pass_mark=int(row[0]) if row else 33; session["pass_mark"]=pass_mark
+    return render_template("organizations/settings.html",pass_mark=pass_mark,subjects=subjects)
 
 
 @app.route("/organization/backup")

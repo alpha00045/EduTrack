@@ -725,8 +725,10 @@ def test_organization_add_student_scopes_insert_to_current_organization(client, 
         },
     )
     assert response.status_code == 302
-    query, params = connection.fake_cursor.executed[0]
-    assert "INSERT INTO organization_students" in query
+    query, params = next(
+        (item for item in connection.fake_cursor.executed
+         if "INSERT INTO organization_students" in item[0])
+    )
     assert params[0] == 23
     assert connection.committed is True
 

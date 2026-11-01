@@ -1,0 +1,16 @@
+{% extends "layouts/base.html" %}
+{% block title %}Organization Settings | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:760px">
+  <a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a>
+  <h1 class="h2 fw-bold mt-2 mb-4">Organization settings</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+  <form method="POST" class="card border-0 shadow-sm p-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="form-label fw-semibold" for="passMark">Pass mark (%)</label>
+    <input class="form-control" id="passMark" name="pass_mark" type="number" min="0" max="100" value="{{ pass_mark }}" required>
+    <p class="form-text">This setting applies only to your organization's student grading.</p>
+    <button class="btn btn-primary align-self-start">Save settings</button>
+  </form>
+</main>
+{% endblock %}

@@ -27,7 +27,7 @@
       <div class="col-md-4"><div class="text-muted">{{ label }}</div><div class="fw-semibold">{{ value or 'Not provided' }}</div></div>{% endfor %}
     </div>
     <hr><h2 class="h5 fw-bold">Current marks</h2>
-    <div class="row g-3">{% for subject,mark in [('Math',student.math),('Science',student.science),('English',student.english)] %}<div class="col-md-4"><div class="p-3 rounded border"><div class="text-muted">{{ subject }}</div><div class="h3 text-primary mb-0">{{ mark }}%</div></div></div>{% endfor %}</div>
+    <div class="row g-3">{% for subject_id,subject_name in subjects %}<div class="col-md-4"><div class="p-3 rounded border"><div class="text-muted">{{ subject_name }}</div><div class="h3 text-primary mb-0">{{ marks.get(subject_id, 0) }}%</div></div></div>{% endfor %}</div>
     {% if student.notes %}<hr><h2 class="h6 fw-bold">Notes</h2><p class="mb-0">{{ student.notes }}</p>{% endif %}
   </section>
   <form method="POST" action="{{ url_for('organization_delete_student',roll=student.roll) }}" class="mt-3" onsubmit="return confirm('Delete this student and all related records?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger btn-sm">Delete student</button></form>

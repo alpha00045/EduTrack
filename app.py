@@ -852,8 +852,8 @@ def download_student_result(roll):
     story = [
         Paragraph("EduTrack Student Result Card", styles["Title"]),
         Spacer(1, 12),
-        Paragraph(f"<b>Student Name:</b> {escape(str(student[1]))}", styles["BodyText"]),
-        Paragraph(f"<b>Roll Number:</b> {escape(str(student[0]))}", styles["BodyText"]),
+        Paragraph(f"<b>Student Name:</b> {escape(str(student[2]))}", styles["BodyText"]),
+        Paragraph(f"<b>Roll Number:</b> {escape(str(student[1]))}", styles["BodyText"]),
         Spacer(1, 18),
     ]
 
@@ -1909,17 +1909,21 @@ def organization_student_details(roll):
             FROM organization_student_assessments WHERE organization_id=%s AND student_id=%s
             ORDER BY academic_year DESC,recorded_at DESC""", (oid, r[0]))
         history = cur.fetchall()
+        subjects = _organization_subjects(cur, oid)
+        cur.execute("""SELECT subject_id, marks FROM organization_student_subject_marks
+            WHERE organization_id=%s AND student_id=%s""", (oid, r[0]))
+        marks = {int(k): float(v) for k, v in cur.fetchall()}
     finally:
         cur.close()
         conn.close()
     student = dict(zip(("id","roll","name","math","science","english","created","date_of_birth",
         "gender","email","phone","guardian_name","guardian_phone","address","admission_number",
         "joining_date","admission_standard","notes","photo_mime"), r))
-    student["average"] = calculate_average(r[3:6])
+    student["average"] = calculate_average(list(marks.values()))
     assessments = [{"academic_year":x[0],"standard":x[1],"term":x[2],"subject":x[3],
         "marks":x[4],"maximum":x[5],"percentage":round(float(x[4])/float(x[5])*100,2),
         "recorded_at":x[6]} for x in history]
-    return render_template("organizations/student_details.html", student=student, assessments=assessments)
+    return render_template("organizations/student_details.html", student=student, assessments=assessments, subjects=subjects, marks=marks)
 
 
 # ---------------------------------------------------------------------------
@@ -2306,27 +2310,30 @@ def organization_attendance():
 @app.route("/organization/analytics")
 @organization_required
 def organization_analytics():
-    oid = session["organization_id"]
-    conn = get_db_connection()
-    cur = conn.cursor()
+    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
     try:
-        cur.execute("""SELECT COUNT(*),COALESCE(ROUND(AVG((math+science+english)/3.0),2),0),
-            COALESCE(MAX((math+science+english)/3.0),0),COALESCE(MIN((math+science+english)/3.0),0)
-            FROM organization_students WHERE organization_id=%s""", (oid,))
-        summary = cur.fetchone()
-        cur.execute("""SELECT COALESCE(ROUND(AVG(math),2),0),COALESCE(ROUND(AVG(science),2),0),
-            COALESCE(ROUND(AVG(english),2),0) FROM organization_students WHERE organization_id=%s""", (oid,))
-        subjects = cur.fetchone()
+        cur.execute("""SELECT COUNT(DISTINCT s.id),COALESCE(ROUND(AVG(m.marks),2),0),
+            COALESCE(MAX(avg_marks.avg),0),COALESCE(MIN(avg_marks.avg),0)
+            FROM organization_students s
+            LEFT JOIN organization_student_subject_marks m ON m.organization_id=s.organization_id AND m.student_id=s.id
+            LEFT JOIN (SELECT organization_id,student_id,AVG(marks) AS avg
+                FROM organization_student_subject_marks GROUP BY organization_id,student_id) avg_marks
+              ON avg_marks.organization_id=s.organization_id AND avg_marks.student_id=s.id
+            WHERE s.organization_id=%s""",(oid,))
+        summary=cur.fetchone()
+        subjects=_organization_subjects(cur,oid)
+        subject_averages=[]
+        for subject_id,subject_name in subjects:
+            cur.execute("""SELECT COALESCE(ROUND(AVG(marks),2),0)
+                FROM organization_student_subject_marks WHERE organization_id=%s AND subject_id=%s""",(oid,subject_id))
+            subject_averages.append((subject_name,cur.fetchone()[0]))
         cur.execute("""SELECT status,COUNT(*) FROM organization_attendance
-            WHERE organization_id=%s AND attendance_date=CURRENT_DATE GROUP BY status""", (oid,))
-        attendance_counts = dict(cur.fetchall())
+            WHERE organization_id=%s AND attendance_date=CURRENT_DATE GROUP BY status""",(oid,))
+        attendance_counts=dict(cur.fetchall())
     finally:
-        cur.close()
-        conn.close()
-    return render_template("organizations/analytics.html", summary=summary,
-        subjects=subjects, attendance_counts=attendance_counts)
-
-
+        cur.close(); conn.close()
+    return render_template("organizations/analytics.html",summary=summary,
+        subjects=subject_averages,attendance_counts=attendance_counts)
 
 
 @app.route("/organization/settings", methods=["GET","POST"])
@@ -2577,20 +2584,25 @@ def organization_download_student_result(roll):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("""SELECT roll_number,name,math,science,english
-            FROM organization_students WHERE organization_id=%s AND roll_number=%s""", (oid,roll))
+        cur.execute("""SELECT id,roll_number,name FROM organization_students
+            WHERE organization_id=%s AND roll_number=%s""", (oid,roll))
         student = cur.fetchone()
+        if student:
+            cur.execute("""SELECT sub.subject_name,m.marks FROM organization_student_subject_marks m
+                JOIN organization_subjects sub ON sub.organization_id=m.organization_id AND sub.id=m.subject_id
+                WHERE m.organization_id=%s AND m.student_id=%s ORDER BY sub.subject_name""",(oid,student[0]))
+            subject_marks=cur.fetchall()
     finally:
         cur.close()
         conn.close()
     if not student:
         abort(404)
-    average = calculate_average(student[2:5])
+    average = calculate_average([x[1] for x in subject_marks])
     grade = calculate_grade(average)
     styles = getSampleStyleSheet()
     buffer = BytesIO()
     document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=48, leftMargin=48,
-        topMargin=48, bottomMargin=48, title=f"EduTrack Result - {student[0]}")
+        topMargin=48, bottomMargin=48, title=f"EduTrack Result - {student[1]}")
     story = [
         Paragraph("EduTrack Student Result Card", styles["Title"]),
         Spacer(1, 12),
@@ -2599,7 +2611,7 @@ def organization_download_student_result(roll):
         Spacer(1, 18),
     ]
     result_rows = [["Subject", "Marks"]]
-    for subject, mark in zip(("Math", "Science", "English"), student[2:5]):
+    for subject, mark in subject_marks:
         result_rows.append([subject, str(mark)])
     result_rows.extend([["Average", f"{average}%"], ["Grade", grade]])
     table = Table(result_rows, colWidths=[240, 180])
@@ -2614,7 +2626,7 @@ def organization_download_student_result(roll):
     document.build(story)
     buffer.seek(0)
     response = send_file(buffer, as_attachment=True,
-        download_name=f"student-result-{student[0]}.pdf", mimetype="application/pdf")
+        download_name=f"student-result-{student[1]}.pdf", mimetype="application/pdf")
     response.headers["Cache-Control"] = "private, no-store"
     return response
 

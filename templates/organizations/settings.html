@@ -131,5 +131,20 @@
     </div>
   </section>
   {% endif %}
+
+  <section class="card border-0 shadow-sm p-4 mt-4">
+    <h2 class="h5 fw-bold mb-1">Organization Tools</h2>
+    <p class="text-muted mb-3">Export your data, manage backups, or sign out.</p>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-primary" href="/organization/export/csv">Export CSV</a>
+      <a class="btn btn-outline-primary" href="/organization/export/excel">Export Excel</a>
+      <a class="btn btn-outline-secondary" href="/organization/backup">Download backup</a>
+      <a class="btn btn-outline-secondary" href="/organization/restore">Restore backup</a>
+      <form method="POST" action="{{ url_for('organization_logout') }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-danger">Sign out</button>
+      </form>
+    </div>
+  </section>
 </main>
 {% endblock %}

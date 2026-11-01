@@ -2738,9 +2738,7 @@ def organization_download_student_result(roll):
     return response
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
-    @app.route("/organization/students/<path:roll>/result.pdf")
+@app.route("/organization/students/<path:roll>/result.pdf")
 @organization_required
 def organization_download_student_result(roll):
     oid = session["organization_id"]

@@ -7,6 +7,9 @@
     <div class="dropdown">
       <button class="btn btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-label="More organization options" title="More options"><i class="bi bi-three-dots-vertical"></i></button>
       <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="#grading-settings"><i class="bi bi-sliders me-2"></i>Grading Settings</a></li>
+        <li><a class="dropdown-item" href="#manage-subjects"><i class="bi bi-book me-2"></i>Manage Subjects</a></li>
+        <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="{{ url_for('organization_attendance') }}"><i class="bi bi-calendar-check me-2"></i>Attendance</a></li>
         <li><a class="dropdown-item" href="{{ url_for('organization_analytics') }}"><i class="bi bi-graph-up me-2"></i>Analytics</a></li>
         <li><hr class="dropdown-divider"></li>
@@ -20,7 +23,7 @@
     </div>
   </div>
   {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
-  <section class="card border-0 shadow-sm p-4 mb-4">
+  <section id="grading-settings" class="card border-0 shadow-sm p-4 mb-4">
     <h2 class="h5 fw-bold">Grading Settings</h2>
     <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="save_settings">
       <label class="form-label fw-semibold" for="passMark">Pass mark (%)</label>
@@ -29,7 +32,7 @@
       <button class="btn btn-primary">Save settings</button>
     </form>
   </section>
-  <section class="card border-0 shadow-sm p-4">
+  <section id="manage-subjects" class="card border-0 shadow-sm p-4">
     <h2 class="h5 fw-bold">Manage Subjects</h2>
     <p class="text-muted">Add the subjects taught by your organization. New subjects appear in Add Student, Edit Student and student marks.</p>
     <form method="POST" class="row g-2 mb-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_subject">

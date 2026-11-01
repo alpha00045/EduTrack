@@ -800,6 +800,22 @@ def test_organization_settings_and_admin_data_tools_are_separate(client):
         assert response.status_code == 302
 
 
+def test_organization_settings_menu_links_to_grading_and_subject_sections(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 25
+        session["organization_name"] = "Demo School"
+
+    response = client.get("/organization/settings")
+
+    assert response.status_code == 200
+    assert b'href="#grading-settings"' in response.data
+    assert b'id="grading-settings"' in response.data
+    assert b'href="#manage-subjects"' in response.data
+    assert b'id="manage-subjects"' in response.data
+    assert b"Attendance" in response.data
+    assert b"Analytics" in response.data
+
+
 def test_organization_result_pdf_requires_organization_login(client):
     response = client.get("/organization/students/501/result.pdf")
     assert response.status_code == 302

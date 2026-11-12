@@ -214,37 +214,56 @@ def admin_required(f):
 @app.route("/")
 @admin_required
 def index():
-
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("""
-        SELECT
-            roll_number,
-            name,
-            math,
-            science,
-            english
-        FROM students
-    """)
+    try:
+        # Count both platform-admin students and students belonging to organizations.
+        cur.execute("SELECT COUNT(*) FROM students")
+        admin_student_count = cur.fetchone()[0] or 0
+        cur.execute("SELECT COUNT(*) FROM organization_students")
+        organization_student_count = cur.fetchone()[0] or 0
+        total_students = admin_student_count + organization_student_count
 
-    students = cur.fetchall()
+        cur.execute("SELECT COUNT(*) FROM organizations")
+        total_organizations = cur.fetchone()[0] or 0
 
-    cur.close()
-    conn.close()
+        # Each organization-specific subject is counted as one course.
+        cur.execute("SELECT COUNT(*) FROM organization_subjects")
+        total_courses = cur.fetchone()[0] or 0
+
+        # Rank organizations by the average of their students' subject averages.
+        cur.execute("""
+            SELECT o.organization_name,
+                   ROUND(AVG(student_scores.student_average)::numeric, 2)
+            FROM (
+                SELECT organization_id, student_id, AVG(marks) AS student_average
+                FROM organization_student_subject_marks
+                GROUP BY organization_id, student_id
+            ) AS student_scores
+            JOIN organizations o ON o.id = student_scores.organization_id
+            GROUP BY o.id, o.organization_name
+            ORDER BY AVG(student_scores.student_average) DESC, o.organization_name ASC
+            LIMIT 1
+        """)
+        top_organization_row = cur.fetchone()
+        top_organization = top_organization_row[0] if top_organization_row else "—"
+        top_organization_average = top_organization_row[1] if top_organization_row else 0
+
+        # Keep the existing student leaderboard for the dashboard's lower section.
+        cur.execute("""
+            SELECT roll_number, name, math, science, english
+            FROM students
+        """)
+        students = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
 
     student_data = []
-
     for student in students:
-
-        average = calculate_average([
-            student[2],
-            student[3],
-            student[4]
-        ])
-
+        average = calculate_average([student[2], student[3], student[4]])
         grade = calculate_grade(average)
-
         student_data.append({
             "roll": student[0],
             "name": student[1],
@@ -255,45 +274,21 @@ def index():
             "grade": grade
         })
 
-# Highest average first
-    student_data.sort(
-        key=lambda x: x["average"],
-        reverse=True
-    )
-
-    total_students = len(student_data)
-
-    top_students = student_data[:10]
-
-    averages = [
-        student["average"]
-        for student in student_data
-        if student["average"] > 0
-    ]
-
-    class_average = (
-        round(sum(averages) / len(averages), 2)
-        if averages
-        else 0
-    )
-
-    highest = (
-        max(averages)
-        if averages
-        else 0
-    )
-
-    subjects = 3
+    student_data.sort(key=lambda x: x["average"], reverse=True)
+    averages = [student["average"] for student in student_data if student["average"] > 0]
+    class_average = round(sum(averages) / len(averages), 2) if averages else 0
 
     return render_template(
         "students/list.html",
-        students=top_students,
+        students=student_data[:10],
         total_students=total_students,
-        class_average=class_average,
-        highest=highest,
-        subjects=subjects
+        total_courses=total_courses,
+        total_organizations=total_organizations,
+        top_organization=top_organization,
+        top_organization_average=top_organization_average,
+        class_average=class_average
     )
-    
+
 @app.route("/view_students")
 @admin_required
 def view_students():

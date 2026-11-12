@@ -337,3 +337,5 @@ footer { color: var(--text-muted); padding: 1.25rem 0; }
 .feature-page .table tbody td { border-color: var(--line); }
 :root[data-theme="dark"] .feature-page .alert-info { background: #1c3850; color: #c4e4ff; border-color: #31536e; }
 :root[data-theme="dark"] .feature-page .table > :not(caption) > * > * { background: var(--surface); color: var(--text-main); }
+
+.metric-name-value { font-size: clamp(1rem, 1.8vw, 1.45rem); line-height: 1.2; letter-spacing: -.35px; overflow-wrap: anywhere; }

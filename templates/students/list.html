@@ -26,8 +26,8 @@
     <section aria-label="Class overview" class="mb-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-                <h2 class="section-heading mb-1">Class overview</h2>
-                <p class="section-subtitle mb-0">A quick snapshot of your classroom.</p>
+                <h2 class="section-heading mb-1">Platform overview</h2>
+                <p class="section-subtitle mb-0">A quick snapshot of all organizations and students.</p>
             </div>
             <span class="live-pill"><span class="live-dot"></span> Live summary</span>
         </div>
@@ -40,20 +40,20 @@
             </div>
             <div class="col-6 col-xl-3">
                 <article class="metric-card metric-violet h-100">
-                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="metric-label">CLASS SCORE</span></div>
-                    <p class="metric-value">{{ class_average }}<small>%</small></p><p class="metric-caption mb-0">Class average</p>
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="metric-label">COURSE CATALOG</span></div>
+                    <p class="metric-value">{{ total_courses }}</p><p class="metric-caption mb-0">Total courses</p>
                 </article>
             </div>
             <div class="col-6 col-xl-3">
                 <article class="metric-card metric-amber h-100">
-                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-trophy-fill"></i></span><span class="metric-label">TOP SCORE</span></div>
-                    <p class="metric-value">{{ highest }}<small>%</small></p><p class="metric-caption mb-0">Highest average</p>
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-trophy-fill"></i></span><span class="metric-label">TOP ORGANIZATION</span></div>
+                    <p class="metric-value metric-name-value">{{ top_organization }}</p><p class="metric-caption mb-0">{% if top_organization_average %}{{ top_organization_average }}% average{% else %}No scores available{% endif %}</p>
                 </article>
             </div>
             <div class="col-6 col-xl-3">
                 <article class="metric-card metric-green h-100">
-                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-journal-bookmark-fill"></i></span><span class="metric-label">CURRICULUM</span></div>
-                    <p class="metric-value">{{ subjects }}</p><p class="metric-caption mb-0">Subjects tracked</p>
+                    <div class="metric-top"><span class="metric-icon"><i class="bi bi-journal-bookmark-fill"></i></span><span class="metric-label">ORGANIZATIONS</span></div>
+                    <p class="metric-value">{{ total_organizations }}</p><p class="metric-caption mb-0">Total organizations</p>
                 </article>
             </div>
         </div>

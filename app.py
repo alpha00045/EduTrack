@@ -1960,13 +1960,14 @@ def organization_add_student():
                 # Create a one-time temporary password for the organization admin to hand over.
                 # It is never sent by email/SMS and only its hash is stored.
                 username_roll = re.sub(r"[^A-Za-z0-9._-]", "", roll)[:32] or str(student_id)
-                username = f"ET{oid}-{username_roll}"
+                username = f"ET{oid}-{student_id}"
                 temporary_password = secrets.token_urlsafe(10)
                 cur.execute(
                     """INSERT INTO organization_student_accounts
-                       (organization_id,student_id,username,password_hash,must_change_password)
-                       VALUES (%s,%s,%s,%s,TRUE)""",
-                    (oid,student_id,username,generate_password_hash(temporary_password))
+                       (organization_id,student_id,username,password_hash,must_change_password,account_status)
+                       VALUES (%s,%s,%s,%s,TRUE,%s)""",
+                    (oid,student_id,username,generate_password_hash(temporary_password),
+                     "Active" if status == "Active" else "Disabled")
                 )
                 conn.commit()
                 temporary_credentials = {"username": username, "password": temporary_password}

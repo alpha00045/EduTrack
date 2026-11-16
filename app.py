@@ -3107,6 +3107,18 @@ def student_dashboard():
         )
         assessments = cur.fetchall()
         cur.execute(
+            """SELECT e.title,e.academic_year,e.class_or_course,e.term,sub.subject_name,
+                      r.marks_obtained,sub.maximum_marks,e.exam_date
+               FROM organization_exam_results r
+               JOIN organization_exams e ON e.organization_id=r.organization_id AND e.id=r.exam_id
+               JOIN organization_exam_subjects sub ON sub.organization_id=r.organization_id
+                    AND sub.exam_id=r.exam_id AND sub.id=r.exam_subject_id
+               WHERE r.organization_id=%s AND r.student_id=%s AND e.published=TRUE
+               ORDER BY e.exam_date DESC NULLS LAST,e.created_at DESC,sub.subject_name""",
+            (oid,sid)
+        )
+        published_exam_results = cur.fetchall()
+        cur.execute(
             """SELECT title,body,published_at FROM organization_notices
                WHERE organization_id=%s AND published=TRUE AND audience IN ('Students','All')
                ORDER BY published_at DESC NULLS LAST,created_at DESC LIMIT 50""",
@@ -3117,7 +3129,7 @@ def student_dashboard():
         cur.close()
         conn.close()
     return render_template(
-        "student/dashboard.html", profile=profile, assessments=assessments, notices=notices,
+        "student/dashboard.html", profile=profile, assessments=assessments, published_exam_results=published_exam_results, notices=notices,
         organization_name=session.get("organization_name","School / Institute")
     )
 
@@ -3182,3 +3194,241 @@ def organization_delete_notice(notice_id):
         conn.close()
     flash("Notice deleted.", "success")
     return redirect(url_for("organization_notices"))
+
+
+# ---------------------------------------------------------------------------
+# Organization exam management (Phase 5)
+# ---------------------------------------------------------------------------
+
+@app.route("/organization/exams", methods=["GET", "POST"])
+@organization_required
+def organization_exams():
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            title = (request.form.get("title") or "").strip()
+            academic_year = (request.form.get("academic_year") or "").strip()
+            class_or_course = (request.form.get("class_or_course") or "").strip()
+            term = (request.form.get("term") or "").strip()
+            exam_date = (request.form.get("exam_date") or "").strip() or None
+            valid = bool(title and len(title) <= 160 and academic_year and len(academic_year) <= 20)
+            if not valid or len(class_or_course) > 120 or len(term) > 80:
+                flash("Enter a valid exam name, academic year, class/course and term.", "danger")
+            else:
+                if exam_date:
+                    try:
+                        datetime.strptime(exam_date, "%Y-%m-%d")
+                    except ValueError:
+                        valid = False
+                        flash("Enter a valid exam date.", "danger")
+                if valid:
+                    cur.execute(
+                        """INSERT INTO organization_exams
+                           (organization_id,title,academic_year,class_or_course,term,exam_date)
+                           VALUES (%s,%s,%s,%s,%s,%s)""",
+                        (organization_id,title,academic_year,class_or_course or None,term or None,exam_date)
+                    )
+                    conn.commit()
+                    flash("Exam created. Add subjects and enter student marks.", "success")
+                    return redirect(url_for("organization_exams"))
+        cur.execute(
+            """SELECT e.id,e.title,e.academic_year,e.class_or_course,e.term,e.exam_date,
+                      e.published,COUNT(DISTINCT s.id)
+               FROM organization_exams e
+               LEFT JOIN organization_exam_subjects s
+                 ON s.organization_id=e.organization_id AND s.exam_id=e.id
+               WHERE e.organization_id=%s
+               GROUP BY e.id ORDER BY e.created_at DESC LIMIT 100""",
+            (organization_id,)
+        )
+        exams = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/exams.html", exams=exams)
+
+
+@app.route("/organization/exams/<int:exam_id>", methods=["GET", "POST"])
+@organization_required
+def organization_exam_detail(exam_id):
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id,title,academic_year,class_or_course,term,exam_date,published
+               FROM organization_exams WHERE id=%s AND organization_id=%s""",
+            (exam_id,organization_id)
+        )
+        exam = cur.fetchone()
+        if not exam:
+            abort(404)
+
+        if request.method == "POST":
+            if exam[6]:
+                flash("Published exam results are locked and cannot be changed.", "warning")
+                return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+            action = request.form.get("action")
+            if action == "add_subject":
+                subject_name = (request.form.get("subject_name") or "").strip()
+                try:
+                    maximum = float(request.form.get("maximum_marks", ""))
+                    passing = float(request.form.get("pass_marks", ""))
+                except (TypeError, ValueError):
+                    maximum, passing = 0, -1
+                if not subject_name or len(subject_name) > 100:
+                    flash("Enter a valid subject name.", "danger")
+                elif not (maximum > 0 and 0 <= passing <= maximum):
+                    flash("Enter valid maximum and pass marks.", "danger")
+                else:
+                    cur.execute(
+                        """INSERT INTO organization_exam_subjects
+                           (organization_id,exam_id,subject_name,maximum_marks,pass_marks)
+                           VALUES (%s,%s,%s,%s,%s)
+                           ON CONFLICT (organization_id,exam_id,subject_name) DO NOTHING""",
+                        (organization_id,exam_id,subject_name,maximum,passing)
+                    )
+                    if cur.rowcount:
+                        conn.commit()
+                        flash("Subject added.", "success")
+                    else:
+                        conn.rollback()
+                        flash("That subject is already part of this exam.", "warning")
+                return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+
+            if action == "save_marks":
+                try:
+                    subject_id = int(request.form.get("subject_id", ""))
+                except (TypeError, ValueError):
+                    abort(400)
+                cur.execute(
+                    """SELECT maximum_marks FROM organization_exam_subjects
+                       WHERE id=%s AND organization_id=%s AND exam_id=%s""",
+                    (subject_id,organization_id,exam_id)
+                )
+                subject = cur.fetchone()
+                if not subject:
+                    abort(404)
+                maximum = float(subject[0])
+                cur.execute(
+                    """SELECT s.id FROM organization_students s
+                       WHERE s.organization_id=%s
+                       AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
+                           WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'
+                       ORDER BY s.roll_number""",
+                    (organization_id,)
+                )
+                student_ids = [row[0] for row in cur.fetchall()]
+                updates = []
+                for student_id in student_ids:
+                    raw = (request.form.get("mark_" + str(student_id)) or "").strip()
+                    if not raw:
+                        continue
+                    try:
+                        mark = float(raw)
+                    except ValueError:
+                        flash("Marks must be numeric. No marks were saved.", "danger")
+                        return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+                    if not 0 <= mark <= maximum:
+                        flash("Marks must be between 0 and the subject maximum. No marks were saved.", "danger")
+                        return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+                    updates.append((organization_id,exam_id,student_id,subject_id,mark))
+                for values in updates:
+                    cur.execute(
+                        """INSERT INTO organization_exam_results
+                           (organization_id,exam_id,student_id,exam_subject_id,marks_obtained)
+                           VALUES (%s,%s,%s,%s,%s)
+                           ON CONFLICT (organization_id,exam_id,student_id,exam_subject_id)
+                           DO UPDATE SET marks_obtained=EXCLUDED.marks_obtained,
+                                         updated_at=CURRENT_TIMESTAMP""",
+                        values
+                    )
+                conn.commit()
+                flash("Marks saved for " + str(len(updates)) + " student(s).", "success")
+                return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+
+        cur.execute(
+            """SELECT id,subject_name,maximum_marks,pass_marks FROM organization_exam_subjects
+               WHERE organization_id=%s AND exam_id=%s ORDER BY subject_name""",
+            (organization_id,exam_id)
+        )
+        subjects = cur.fetchall()
+        cur.execute(
+            """SELECT s.id,s.roll_number,s.name FROM organization_students s
+               WHERE s.organization_id=%s
+               AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
+                   WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'
+               ORDER BY s.roll_number""",
+            (organization_id,)
+        )
+        students = cur.fetchall()
+        marks_by_subject = {}
+        for subject in subjects:
+            cur.execute(
+                """SELECT student_id,marks_obtained FROM organization_exam_results
+                   WHERE organization_id=%s AND exam_id=%s AND exam_subject_id=%s""",
+                (organization_id,exam_id,subject[0])
+            )
+            marks_by_subject[subject[0]] = {row[0]:row[1] for row in cur.fetchall()}
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/exam_detail.html", exam=exam, subjects=subjects,
+                           students=students, marks_by_subject=marks_by_subject)
+
+
+@app.route("/organization/exams/<int:exam_id>/publish", methods=["POST"])
+@organization_required
+def organization_publish_exam(exam_id):
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT published FROM organization_exams WHERE id=%s AND organization_id=%s",
+                    (exam_id,organization_id))
+        exam = cur.fetchone()
+        if not exam:
+            abort(404)
+        if exam[0]:
+            flash("This exam is already published.", "info")
+            return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+        cur.execute("SELECT COUNT(*) FROM organization_exam_subjects WHERE organization_id=%s AND exam_id=%s",
+                    (organization_id,exam_id))
+        subject_count = cur.fetchone()[0]
+        cur.execute(
+            """SELECT COUNT(*) FROM organization_students s
+               WHERE s.organization_id=%s
+               AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
+                   WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'""",
+            (organization_id,)
+        )
+        student_count = cur.fetchone()[0]
+        cur.execute(
+            """SELECT COUNT(*) FROM organization_students s
+               CROSS JOIN organization_exam_subjects sub
+               LEFT JOIN organization_exam_results r
+                 ON r.organization_id=s.organization_id AND r.student_id=s.id
+                AND r.exam_id=sub.exam_id AND r.exam_subject_id=sub.id
+               WHERE s.organization_id=%s AND sub.organization_id=%s AND sub.exam_id=%s
+                 AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
+                     WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'
+                 AND r.id IS NULL""",
+            (organization_id,organization_id,exam_id)
+        )
+        missing_count = cur.fetchone()[0]
+        if not subject_count or not student_count or missing_count:
+            flash("Complete marks for every active student and every exam subject before publishing.", "warning")
+        else:
+            cur.execute(
+                """UPDATE organization_exams SET published=TRUE,published_at=CURRENT_TIMESTAMP,
+                   updated_at=CURRENT_TIMESTAMP WHERE id=%s AND organization_id=%s""",
+                (exam_id,organization_id)
+            )
+            conn.commit()
+            flash("Exam results published to student dashboards.", "success")
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_exam_detail",exam_id=exam_id))

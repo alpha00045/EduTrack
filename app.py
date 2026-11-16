@@ -2953,3 +2953,201 @@ def organization_download_student_result(roll):
 if __name__ == "__main__":
     app.run(debug=True)
     
+
+
+# ---------------------------------------------------------------------------
+# Student portal and organization notices
+# ---------------------------------------------------------------------------
+
+def student_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("student_account_id") or not session.get("student_id"):
+            flash("Please sign in with your student account.", "warning")
+            return redirect(url_for("student_login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route("/portal")
+def portal_home():
+    """Common entry point for the three EduTrack user roles."""
+    return render_template("auth/portal.html")
+
+
+@app.route("/student/login", methods=["GET", "POST"])
+def student_login():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT a.id,a.organization_id,a.student_id,a.password_hash,
+                          a.must_change_password,a.account_status,s.name,o.organization_name
+                   FROM organization_student_accounts a
+                   JOIN organization_students s
+                     ON s.organization_id=a.organization_id AND s.id=a.student_id
+                   JOIN organizations o ON o.id=a.organization_id
+                   WHERE a.username=%s""",
+                (username,)
+            )
+            account = cur.fetchone()
+        finally:
+            cur.close()
+            conn.close()
+
+        if not account or not check_password_hash(account[3], password):
+            flash("Invalid student username or password.", "danger")
+        elif account[5] != "Active":
+            flash("This student account is not active. Contact your school or institute.", "danger")
+        else:
+            session.clear()
+            session["student_account_id"] = account[0]
+            session["organization_id"] = account[1]
+            session["student_id"] = account[2]
+            session["student_name"] = account[6]
+            session["organization_name"] = account[7]
+            if account[4]:
+                return redirect(url_for("student_change_password"))
+            return redirect(url_for("student_dashboard"))
+    return render_template("auth/student_login.html")
+
+
+@app.route("/student/change-password", methods=["GET", "POST"])
+@student_required
+def student_change_password():
+    if request.method == "POST":
+        password = request.form.get("password") or ""
+        confirmation = request.form.get("confirm_password") or ""
+        if len(password) < 12:
+            flash("Choose a password with at least 12 characters.", "danger")
+        elif password != confirmation:
+            flash("The password confirmation does not match.", "danger")
+        else:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """UPDATE organization_student_accounts
+                       SET password_hash=%s,must_change_password=FALSE,updated_at=CURRENT_TIMESTAMP
+                       WHERE id=%s AND organization_id=%s AND student_id=%s""",
+                    (generate_password_hash(password),session["student_account_id"],
+                     session["organization_id"],session["student_id"])
+                )
+                conn.commit()
+            finally:
+                cur.close()
+                conn.close()
+            flash("Your password has been updated.", "success")
+            return redirect(url_for("student_dashboard"))
+    return render_template("auth/student_change_password.html")
+
+
+@app.route("/student")
+@app.route("/student/dashboard")
+@student_required
+def student_dashboard():
+    oid = session["organization_id"]
+    sid = session["student_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT s.roll_number,s.name,p.date_of_birth,p.gender,p.admission_number,
+                      p.admission_standard,p.semester,p.course_name,p.section,p.academic_year,
+                      p.student_status
+               FROM organization_students s
+               LEFT JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND s.id=%s""",
+            (oid,sid)
+        )
+        profile = cur.fetchone()
+        if not profile:
+            abort(404)
+        cur.execute(
+            """SELECT academic_year,standard,term,subject,marks_obtained,maximum_marks,recorded_at
+               FROM organization_student_assessments
+               WHERE organization_id=%s AND student_id=%s
+               ORDER BY academic_year DESC,recorded_at DESC""",
+            (oid,sid)
+        )
+        assessments = cur.fetchall()
+        cur.execute(
+            """SELECT title,body,published_at FROM organization_notices
+               WHERE organization_id=%s AND published=TRUE AND audience IN ('Students','All')
+               ORDER BY published_at DESC NULLS LAST,created_at DESC LIMIT 50""",
+            (oid,)
+        )
+        notices = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template(
+        "student/dashboard.html", profile=profile, assessments=assessments, notices=notices,
+        organization_name=session.get("organization_name","School / Institute")
+    )
+
+
+@app.route("/student/logout", methods=["POST"])
+@student_required
+def student_logout():
+    session.clear()
+    flash("You have been signed out.", "success")
+    return redirect(url_for("portal_home"))
+
+
+@app.route("/organization/notices", methods=["GET", "POST"])
+@organization_required
+def organization_notices():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            title = (request.form.get("title") or "").strip()
+            body = (request.form.get("body") or "").strip()
+            audience = (request.form.get("audience") or "Students").strip()
+            published = request.form.get("published") == "on"
+            if not title or len(title) > 180 or not body or audience not in {"Students","All"}:
+                flash("Enter a valid notice title, message and audience.", "danger")
+            else:
+                cur.execute(
+                    """INSERT INTO organization_notices
+                       (organization_id,title,body,audience,published,published_at)
+                       VALUES (%s,%s,%s,%s,%s,CASE WHEN %s THEN CURRENT_TIMESTAMP ELSE NULL END)""",
+                    (oid,title,body,audience,published,published)
+                )
+                conn.commit()
+                flash("Notice saved successfully.", "success")
+        cur.execute(
+            """SELECT id,title,body,audience,published,published_at,created_at
+               FROM organization_notices WHERE organization_id=%s
+               ORDER BY created_at DESC LIMIT 100""",
+            (oid,)
+        )
+        notices = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/notices.html", notices=notices)
+
+
+@app.route("/organization/notices/<int:notice_id>/delete", methods=["POST"])
+@organization_required
+def organization_delete_notice(notice_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "DELETE FROM organization_notices WHERE id=%s AND organization_id=%s",
+            (notice_id,session["organization_id"])
+        )
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    flash("Notice deleted.", "success")
+    return redirect(url_for("organization_notices"))

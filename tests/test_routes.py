@@ -416,7 +416,10 @@ def test_dashboard_has_personalized_greeting_and_quick_actions(client):
     response = client.get("/")
     assert response.status_code == 200
     assert b"Welcome back" in response.data
-    assert b"Class overview" in response.data
+    assert b"Platform overview" in response.data
+    assert b"Total courses" in response.data
+    assert b"Total organizations" in response.data
+    assert b"TOP ORGANIZATION" in response.data
     assert b"Quick actions" in response.data
     assert b"dashboardDate" in response.data
 

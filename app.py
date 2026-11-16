@@ -256,6 +256,9 @@ def index():
             FROM students
         """)
         students = cur.fetchall()
+    except psycopg2.Error:
+        conn.rollback()
+        raise
     finally:
         cur.close()
         conn.close()

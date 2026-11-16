@@ -881,3 +881,23 @@ def test_organization_import_parser_rejects_custom_subject_marks_over_100():
     )
     assert records is None
     assert "between 0 and 100" in error
+
+
+
+def test_student_session_cannot_access_organization_admin_pages(client):
+    with client.session_transaction() as session:
+        session["student_account_id"] = 91
+        session["student_id"] = 301
+        session["organization_id"] = 23
+        session["organization_name"] = "Tenant School"
+    response = client.get("/organization/notices")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_portal_home_shows_three_login_roles(client):
+    response = client.get("/portal")
+    assert response.status_code == 200
+    assert b"Admin" in response.data
+    assert b"School / Institute" in response.data
+    assert b"Student" in response.data

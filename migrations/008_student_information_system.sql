@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS organization_student_enrolments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (organization_id, student_id)
         REFERENCES organization_students (organization_id, id) ON DELETE CASCADE,
+    UNIQUE (organization_id, student_id, id),
     CHECK (
         (organization_type = 'School' AND standard IS NOT NULL AND course_name IS NULL AND semester IS NULL)
         OR
@@ -62,11 +63,13 @@ CREATE INDEX IF NOT EXISTS idx_org_student_enrolments_history
 CREATE TABLE IF NOT EXISTS organization_student_enrolled_subjects (
     organization_id BIGINT NOT NULL,
     student_id BIGINT NOT NULL,
-    enrolment_id BIGINT NOT NULL REFERENCES organization_student_enrolments(id) ON DELETE CASCADE,
+    enrolment_id BIGINT NOT NULL,
     subject_id BIGINT NOT NULL,
     PRIMARY KEY (organization_id, student_id, enrolment_id, subject_id),
     FOREIGN KEY (organization_id, student_id)
         REFERENCES organization_students (organization_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (organization_id, student_id, enrolment_id)
+        REFERENCES organization_student_enrolments (organization_id, student_id, id) ON DELETE CASCADE,
     FOREIGN KEY (organization_id, subject_id)
         REFERENCES organization_subjects (organization_id, id) ON DELETE CASCADE
 );

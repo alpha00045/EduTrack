@@ -3258,8 +3258,9 @@ def organization_exam_detail(exam_id):
     cur = conn.cursor()
     try:
         cur.execute(
-            """SELECT id,title,academic_year,class_or_course,term,exam_date,published
-               FROM organization_exams WHERE id=%s AND organization_id=%s""",
+            """SELECT e.id,e.title,e.academic_year,e.class_or_course,e.term,e.exam_date,e.published,o.organization_type
+               FROM organization_exams e JOIN organizations o ON o.id=e.organization_id
+               WHERE e.id=%s AND e.organization_id=%s""",
             (exam_id,organization_id)
         )
         exam = cur.fetchone()
@@ -3314,11 +3315,17 @@ def organization_exam_detail(exam_id):
                 maximum = float(subject[0])
                 cur.execute(
                     """SELECT s.id FROM organization_students s
-                       WHERE s.organization_id=%s
-                       AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
-                           WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'
+                       JOIN organization_exams e ON e.id=%s AND e.organization_id=s.organization_id
+                       JOIN organizations o ON o.id=s.organization_id
+                       LEFT JOIN organization_student_profiles p
+                         ON p.organization_id=s.organization_id AND p.student_id=s.id
+                       WHERE s.organization_id=%s AND COALESCE(p.student_status,'Active')='Active'
+                         AND (e.class_or_course IS NULL
+                           OR (o.organization_type='School' AND p.admission_standard=e.class_or_course)
+                           OR (o.organization_type='Institute' AND p.course_name=e.class_or_course))
+                         AND (o.organization_type<>'Institute' OR e.term IS NULL OR p.semester=e.term)
                        ORDER BY s.roll_number""",
-                    (organization_id,)
+                    (exam_id,organization_id)
                 )
                 student_ids = [row[0] for row in cur.fetchall()]
                 updates = []
@@ -3357,11 +3364,17 @@ def organization_exam_detail(exam_id):
         subjects = cur.fetchall()
         cur.execute(
             """SELECT s.id,s.roll_number,s.name FROM organization_students s
-               WHERE s.organization_id=%s
-               AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
-                   WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'
+               JOIN organization_exams e ON e.id=%s AND e.organization_id=s.organization_id
+               JOIN organizations o ON o.id=s.organization_id
+               LEFT JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND COALESCE(p.student_status,'Active')='Active'
+                 AND (e.class_or_course IS NULL
+                   OR (o.organization_type='School' AND p.admission_standard=e.class_or_course)
+                   OR (o.organization_type='Institute' AND p.course_name=e.class_or_course))
+                 AND (o.organization_type<>'Institute' OR e.term IS NULL OR p.semester=e.term)
                ORDER BY s.roll_number""",
-            (organization_id,)
+            (exam_id,organization_id)
         )
         students = cur.fetchall()
         marks_by_subject = {}
@@ -3386,7 +3399,7 @@ def organization_publish_exam(exam_id):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT published FROM organization_exams WHERE id=%s AND organization_id=%s",
+        cur.execute("SELECT published,class_or_course,term FROM organization_exams WHERE id=%s AND organization_id=%s",
                     (exam_id,organization_id))
         exam = cur.fetchone()
         if not exam:
@@ -3399,23 +3412,36 @@ def organization_publish_exam(exam_id):
         subject_count = cur.fetchone()[0]
         cur.execute(
             """SELECT COUNT(*) FROM organization_students s
-               WHERE s.organization_id=%s
-               AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
-                   WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'""",
-            (organization_id,)
+               JOIN organization_exams e ON e.id=%s AND e.organization_id=s.organization_id
+               JOIN organizations o ON o.id=s.organization_id
+               LEFT JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND COALESCE(p.student_status,'Active')='Active'
+                 AND (e.class_or_course IS NULL
+                   OR (o.organization_type='School' AND p.admission_standard=e.class_or_course)
+                   OR (o.organization_type='Institute' AND p.course_name=e.class_or_course))
+                 AND (o.organization_type<>'Institute' OR e.term IS NULL OR p.semester=e.term)""",
+            (exam_id,organization_id)
         )
         student_count = cur.fetchone()[0]
         cur.execute(
             """SELECT COUNT(*) FROM organization_students s
+               JOIN organization_exams e ON e.id=%s AND e.organization_id=s.organization_id
+               JOIN organizations o ON o.id=s.organization_id
+               LEFT JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
                CROSS JOIN organization_exam_subjects sub
                LEFT JOIN organization_exam_results r
                  ON r.organization_id=s.organization_id AND r.student_id=s.id
                 AND r.exam_id=sub.exam_id AND r.exam_subject_id=sub.id
-               WHERE s.organization_id=%s AND sub.organization_id=%s AND sub.exam_id=%s
-                 AND COALESCE((SELECT p.student_status FROM organization_student_profiles p
-                     WHERE p.organization_id=s.organization_id AND p.student_id=s.id),'Active')='Active'
+               WHERE s.organization_id=%s AND COALESCE(p.student_status,'Active')='Active'
+                 AND sub.organization_id=%s AND sub.exam_id=%s
+                 AND (e.class_or_course IS NULL
+                   OR (o.organization_type='School' AND p.admission_standard=e.class_or_course)
+                   OR (o.organization_type='Institute' AND p.course_name=e.class_or_course))
+                 AND (o.organization_type<>'Institute' OR e.term IS NULL OR p.semester=e.term)
                  AND r.id IS NULL""",
-            (organization_id,organization_id,exam_id)
+            (exam_id,organization_id,organization_id,exam_id)
         )
         missing_count = cur.fetchone()[0]
         if not subject_count or not student_count or missing_count:

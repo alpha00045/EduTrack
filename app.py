@@ -20,6 +20,7 @@ import csv
 import hmac
 import base64
 import zipfile
+import secrets
 from datetime import datetime
 
 import os
@@ -1498,7 +1499,7 @@ def register_organization():
         password = request.form.get("password", "")
         confirm_password = request.form.get("confirm_password", "")
 
-        allowed_types = {"School", "College", "University", "Coaching Institute", "Other"}
+        allowed_types = {"School", "Institute"}
         errors = []
         if not organization_name or len(organization_name) > 150:
             errors.append("Enter an organization name (up to 150 characters).")
@@ -1837,42 +1838,160 @@ def organization_students():
     return render_template("organizations/students.html",students=students,search=search,subjects=subjects,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 
-@app.route("/organization/students/add", methods=["GET","POST"])
+@app.route("/organization/students/add", methods=["GET", "POST"])
 @organization_required
 def organization_add_student():
-    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    temporary_credentials = None
     try:
-        subjects=_organization_subjects(cur,oid)
-        if request.method=="POST":
-            roll=(request.form.get("roll") or "").strip(); name=(request.form.get("name") or "").strip()
-            standard=(request.form.get("standard") or "").strip()[:40] or None
-            semester=(request.form.get("semester") or "").strip()[:20] or None
-            if not roll or len(roll)>40 or not name or len(name)>100:
-                flash("Enter a valid roll number and student name.","danger")
-                return render_template("organizations/add_student.html",subjects=subjects),400
-            marks,error=_organization_subject_values(request.form,subjects)
-            if error:
-                flash(error,"danger"); return render_template("organizations/add_student.html",subjects=subjects),400
-            by_name={n.lower():marks[i] for i,n in subjects}
+        cur.execute("SELECT organization_type FROM organizations WHERE id=%s", (oid,))
+        organization = cur.fetchone()
+        if not organization:
+            abort(403)
+        organization_type = organization[0]
+        if organization_type not in {"School", "Institute"}:
+            abort(403)
+
+        subjects = _organization_subjects(cur, oid)
+        if request.method == "POST":
+            roll = (request.form.get("roll") or "").strip()
+            name = (request.form.get("name") or "").strip()
+            dob = (request.form.get("date_of_birth") or "").strip() or None
+            admission_date = (request.form.get("admission_date") or "").strip() or None
+            admission_number = (request.form.get("admission_number") or "").strip() or None
+            standard = (request.form.get("standard") or "").strip()[:40] or None
+            section = (request.form.get("section") or "").strip()[:30] or None
+            semester = (request.form.get("semester") or "").strip()[:20] or None
+            course_name = (request.form.get("course_name") or "").strip()[:120] or None
+            academic_year = (request.form.get("academic_year") or "").strip()[:20]
+            status = (request.form.get("student_status") or "Active").strip()
+            selected_subjects = request.form.getlist("subject_ids")
+            errors = []
+
+            if not roll or len(roll) > 40:
+                errors.append("Enter a valid roll number (maximum 40 characters).")
+            if not name or len(name) > 100:
+                errors.append("Enter the student's full name (maximum 100 characters).")
+            if not academic_year:
+                errors.append("Enter the academic year.")
+            if status not in {"Active", "Transferred", "Graduated", "Inactive"}:
+                errors.append("Choose a valid student status.")
+            if organization_type == "School" and not standard:
+                errors.append("Enter the student's class or standard.")
+            if organization_type == "Institute" and (not course_name or not semester):
+                errors.append("Enter the course and semester for this institute student.")
+            valid_subject_ids = {str(subject_id) for subject_id, _ in subjects}
+            if any(subject_id not in valid_subject_ids for subject_id in selected_subjects):
+                errors.append("Choose only subjects offered by your organization.")
+
+            photo_upload = request.files.get("photo")
+            photo, photo_error = _valid_image_upload(photo_upload)
+            if photo_error:
+                errors.append(photo_error)
+
+            if errors:
+                for error in errors:
+                    flash(error, "danger")
+                return render_template(
+                    "organizations/add_student.html",
+                    subjects=subjects, organization_type=organization_type, form=request.form
+                ), 400
+
+            photo_data, photo_mime = photo if photo else (None, None)
+            father_name = (request.form.get("father_name") or "").strip()[:120] or None
+            mother_name = (request.form.get("mother_name") or "").strip()[:120] or None
+            guardian_name = (request.form.get("guardian_name") or "").strip()[:120] or None
+            guardian_phone = (request.form.get("guardian_phone") or "").strip()[:30] or None
+            guardian_email = (request.form.get("guardian_email") or "").strip().lower() or None
+            phone = (request.form.get("phone") or "").strip()[:30] or None
+            email = (request.form.get("email") or "").strip().lower() or None
+            address = (request.form.get("address") or "").strip()[:500] or None
+            emergency_name = (request.form.get("emergency_contact_name") or "").strip()[:120] or None
+            emergency_phone = (request.form.get("emergency_contact_phone") or "").strip()[:30] or None
+            previous_institution = (request.form.get("previous_institution") or "").strip()[:180] or None
+            notes = (request.form.get("notes") or "").strip()[:2000] or None
+            gender = (request.form.get("gender") or "").strip()[:40] or None
+            blood_group = (request.form.get("blood_group") or "").strip()[:5] or None
+
             try:
-                cur.execute("""INSERT INTO organization_students
-                    (organization_id,roll_number,name,math,science,english)
-                    VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
-                    (oid,roll,name,by_name.get("math",0),by_name.get("science",0),by_name.get("english",0)))
-                sid=cur.fetchone()[0]
-                _save_organization_subject_values(cur,oid,sid,marks)
-                cur.execute("""INSERT INTO organization_student_profiles
-                    (organization_id,student_id,admission_standard,semester)
-                    VALUES (%s,%s,%s,%s)
-                    ON CONFLICT (organization_id,student_id) DO UPDATE SET
-                    admission_standard=EXCLUDED.admission_standard,semester=EXCLUDED.semester,
-                    updated_at=CURRENT_TIMESTAMP""",(oid,sid,standard,semester))
-                conn.commit(); flash("Student added successfully.","success")
-                return redirect(url_for("organization_students"))
+                cur.execute(
+                    """INSERT INTO organization_students
+                       (organization_id, roll_number, name, math, science, english)
+                       VALUES (%s,%s,%s,0,0,0) RETURNING id""",
+                    (oid, roll, name)
+                )
+                student_id = cur.fetchone()[0]
+                cur.execute(
+                    """INSERT INTO organization_student_profiles
+                       (organization_id,student_id,date_of_birth,gender,email,phone,
+                        guardian_name,guardian_phone,address,admission_number,joining_date,
+                        admission_standard,semester,notes,photo_data,photo_mime,
+                        father_name,mother_name,blood_group,guardian_email,
+                        emergency_contact_name,emergency_contact_phone,section,academic_year,
+                        previous_institution,course_name,student_status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                               %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (oid,student_id,dob,gender,email,phone,guardian_name,guardian_phone,
+                     address,admission_number,admission_date,standard,semester,notes,
+                     photo_data,photo_mime,father_name,mother_name,blood_group,guardian_email,
+                     emergency_name,emergency_phone,section,academic_year,
+                     previous_institution,course_name,status)
+                )
+
+                cur.execute(
+                    """INSERT INTO organization_student_enrolments
+                       (organization_id,student_id,academic_year,organization_type,
+                        standard,section,course_name,semester,start_date,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (oid,student_id,academic_year,organization_type,standard,section,
+                     course_name,semester,admission_date,status)
+                )
+                enrolment_id = cur.fetchone()[0]
+                for subject_id in selected_subjects:
+                    cur.execute(
+                        """INSERT INTO organization_student_enrolled_subjects
+                           (organization_id,student_id,enrolment_id,subject_id)
+                           VALUES (%s,%s,%s,%s)""",
+                        (oid,student_id,enrolment_id,int(subject_id))
+                    )
+
+                # Create a one-time temporary password for the organization admin to hand over.
+                # It is never sent by email/SMS and only its hash is stored.
+                username_roll = re.sub(r"[^A-Za-z0-9._-]", "", roll)[:32] or str(student_id)
+                username = f"ET{oid}-{username_roll}"
+                temporary_password = secrets.token_urlsafe(10)
+                cur.execute(
+                    """INSERT INTO organization_student_accounts
+                       (organization_id,student_id,username,password_hash,must_change_password)
+                       VALUES (%s,%s,%s,%s,TRUE)""",
+                    (oid,student_id,username,generate_password_hash(temporary_password))
+                )
+                conn.commit()
+                temporary_credentials = {"username": username, "password": temporary_password}
+                flash("Student admission saved successfully. Copy the temporary login details now.", "success")
+                return render_template(
+                    "organizations/add_student.html", subjects=subjects,
+                    organization_type=organization_type, credentials=temporary_credentials
+                )
             except psycopg2.errors.UniqueViolation:
-                conn.rollback(); flash("This roll number is already used in your organization.","danger")
-    finally: cur.close(); conn.close()
-    return render_template("organizations/add_student.html",subjects=subjects)
+                conn.rollback()
+                flash("That roll number or student login already exists in your organization.", "danger")
+                return render_template(
+                    "organizations/add_student.html",
+                    subjects=subjects, organization_type=organization_type, form=request.form
+                ), 400
+            except Exception:
+                conn.rollback()
+                raise
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "organizations/add_student.html", subjects=subjects, organization_type=organization_type
+    )
 
 
 @app.route("/organization/students/<path:roll>")

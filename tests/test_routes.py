@@ -901,3 +901,19 @@ def test_portal_home_shows_three_login_roles(client):
     assert b"Admin" in response.data
     assert b"School / Institute" in response.data
     assert b"Student" in response.data
+
+
+def test_exam_management_requires_organization_login(client):
+    response = client.get("/organization/exams")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_student_account_cannot_access_exam_management(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 12
+        session["student_account_id"] = 45
+        session["student_id"] = 90
+    response = client.get("/organization/exams")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")

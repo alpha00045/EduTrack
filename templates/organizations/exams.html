@@ -1,0 +1,17 @@
+{% extends "layouts/base.html" %}
+{% block title %}Exams | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:1100px">
+<a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2">Exam management</h1>
+<p class="text-muted">Create exams, add subjects, record marks and publish completed results to students.</p>
+{% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+<form method="POST" class="card border-0 shadow-sm p-4 mb-4"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5">Create an exam</h2>
+<div class="row g-3"><div class="col-md-4"><label class="form-label">Exam name</label><input class="form-control" name="title" maxlength="160" required></div>
+<div class="col-md-3"><label class="form-label">Academic year</label><input class="form-control" name="academic_year" maxlength="20" required placeholder="2026-27"></div>
+<div class="col-md-2"><label class="form-label">Class / Course</label><input class="form-control" name="class_or_course" maxlength="120"></div>
+<div class="col-md-2"><label class="form-label">Term / Semester</label><input class="form-control" name="term" maxlength="80"></div>
+<div class="col-md-1"><label class="form-label">Date</label><input class="form-control" type="date" name="exam_date"></div></div><button class="btn btn-primary mt-3">Create exam</button></form>
+<h2 class="h5">Your exams</h2><div class="card border-0 shadow-sm table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Exam</th><th>Academic year</th><th>Class / Course</th><th>Date</th><th>Status</th><th>Subjects</th><th>Action</th></tr></thead><tbody>
+{% for e in exams %}<tr><td class="fw-semibold">{{ e[1] }}</td><td>{{ e[2] }}</td><td>{{ e[3] or '—' }} {{ e[4] or '' }}</td><td>{{ e[5].strftime('%d %b %Y') if e[5] else '—' }}</td><td>{% if e[6] %}<span class="badge text-bg-success">Published</span>{% else %}<span class="badge text-bg-secondary">Draft</span>{% endif %}</td><td>{{ e[7] }}</td><td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_exam_detail',exam_id=e[0]) }}">Manage</a></td></tr>
+{% else %}<tr><td colspan="7" class="text-center text-muted py-4">No exams created yet.</td></tr>{% endfor %}</tbody></table></div></main>
+{% endblock %}

@@ -1641,7 +1641,7 @@ def reject_organization(organization_id):
 def organization_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get("organization_id"):
+        if not session.get("organization_id") or session.get("student_account_id"):
             flash("Please sign in with your approved organization account.", "warning")
             return redirect(url_for("organization_login"))
         return f(*args, **kwargs)

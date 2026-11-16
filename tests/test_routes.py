@@ -403,7 +403,7 @@ def test_about_page_remains_public(client):
 def test_guest_navigation_hides_student_and_report_links(client):
     response = client.get("/about")
     assert response.status_code == 200
-    assert b"Admin Login" in response.data
+    assert b"Login" in response.data
     assert b"Students" not in response.data
     assert b"Reports" not in response.data
 

@@ -30,6 +30,7 @@ load_dotenv()
 import re
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 
 from openpyxl import Workbook, load_workbook
@@ -1891,6 +1892,27 @@ def organization_add_student():
             if photo_error:
                 errors.append(photo_error)
 
+            document_files = []
+            for upload in request.files.getlist("documents"):
+                if not upload or not upload.filename:
+                    continue
+                file_data = upload.read(5 * 1024 * 1024 + 1)
+                if not file_data or len(file_data) > 5 * 1024 * 1024:
+                    errors.append("Each document must be non-empty and no larger than 5 MB.")
+                    continue
+                if file_data.startswith(b"%PDF-"):
+                    mime_type = "application/pdf"
+                elif file_data.startswith(b"\xff\xd8\xff"):
+                    mime_type = "image/jpeg"
+                elif file_data.startswith(b"\x89PNG\r\n\x1a\n"):
+                    mime_type = "image/png"
+                elif len(file_data) >= 12 and file_data[:4] == b"RIFF" and file_data[8:12] == b"WEBP":
+                    mime_type = "image/webp"
+                else:
+                    errors.append("Documents must be PDF, JPG, PNG or WebP files.")
+                    continue
+                document_files.append((secure_filename(upload.filename)[:180] or "student-document", mime_type, file_data))
+
             if errors:
                 for error in errors:
                     flash(error, "danger")
@@ -1939,6 +1961,14 @@ def organization_add_student():
                      emergency_name,emergency_phone,section,academic_year,
                      previous_institution,course_name,status)
                 )
+
+                for document_name, mime_type, file_data in document_files:
+                    cur.execute(
+                        """INSERT INTO organization_student_documents
+                           (organization_id,student_id,document_name,mime_type,file_data)
+                           VALUES (%s,%s,%s,%s,%s)""",
+                        (oid,student_id,document_name,mime_type,file_data)
+                    )
 
                 cur.execute(
                     """INSERT INTO organization_student_enrolments

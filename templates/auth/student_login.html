@@ -1,0 +1,13 @@
+{% extends "layouts/base.html" %}
+{% block title %}Student Login | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-5" style="max-width:480px">
+  <div class="card border-0 shadow-sm p-4"><h1 class="h3 fw-bold">Student login</h1><p class="text-muted">Sign in to view your own results and notices.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+  <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3"><label class="form-label">Student username</label><input class="form-control" name="username" autocomplete="username" required></div>
+    <div class="mb-3"><label class="form-label">Password</label><input class="form-control" type="password" name="password" autocomplete="current-password" required></div>
+    <button class="btn btn-primary w-100" type="submit">Sign in</button>
+  </form><a class="small d-block text-center mt-3" href="{{ url_for('portal_home') }}">Back to login options</a></div>
+</main>
+{% endblock %}

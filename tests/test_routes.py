@@ -39,6 +39,14 @@ class FakeCursor:
         return self.rows
 
     def fetchone(self):
+        if self.executed:
+            query = self.executed[-1][0]
+            if "SELECT organization_type FROM organizations" in query:
+                return ("School",)
+            if "INSERT INTO organization_students" in query and "RETURNING id" in query:
+                return (301,)
+            if "INSERT INTO organization_student_enrolments" in query and "RETURNING id" in query:
+                return (901,)
         return self.one
 
     def close(self):
@@ -727,7 +735,8 @@ def test_organization_add_student_scopes_insert_to_current_organization(client, 
             "math": "91", "science": "92", "english": "93",
         },
     )
-    assert response.status_code == 302
+    assert response.status_code == 200
+    assert b"Student login created" in response.data
     query, params = next(
         (item for item in connection.fake_cursor.executed
          if "INSERT INTO organization_students" in item[0])

@@ -731,8 +731,9 @@ def test_organization_add_student_scopes_insert_to_current_organization(client, 
     response = client.post(
         "/organization/students/add",
         data={
-            "roll": "501", "name": "Tenant Student",
-            "math": "91", "science": "92", "english": "93",
+            "roll": "501", "name": "Tenant Student", "standard": "Class 8",
+            "academic_year": "2026-27", "date_of_birth": "2010-01-01",
+            "admission_date": "2026-04-01",
         },
     )
     assert response.status_code == 200

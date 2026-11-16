@@ -62,7 +62,7 @@
     <div class="row g-3 mb-4">
       <div class="col-12"><label class="form-label">Medical / other important notes</label><textarea class="form-control" name="notes" rows="3" maxlength="2000"></textarea></div>
       <div class="col-md-6"><label class="form-label">Student status</label><select class="form-select" name="student_status"><option>Active</option><option>Transferred</option><option>Graduated</option><option>Inactive</option></select></div>
-      <div class="col-md-6"><label class="form-label">Documents</label><p class="form-text mb-0">Document uploads will be enabled in the next records-management step. Do not upload sensitive documents here yet.</p></div>
+      <div class="col-md-6"><label class="form-label">Documents (PDF/JPG/PNG/WebP, max 5 MB each)</label><input class="form-control" type="file" name="documents" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" multiple></div>
     </div>
     <div class="alert alert-info small">A student portal username and temporary password will be generated. The password is displayed once to the organization admin; no email or SMS will be sent.</div>
     <div class="d-flex gap-2"><button class="btn btn-primary px-4" type="submit">Save admission and create student account</button><a class="btn btn-outline-secondary" href="{{ url_for('organization_students') }}">Cancel</a></div>

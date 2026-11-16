@@ -18,7 +18,10 @@
                         <span class="d-lg-none ms-2">Appearance</span>
                     </button>
                 </li>
-                {% if session.get("organization_id") %}
+                {% if session.get("student_account_id") %}
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('student_dashboard') }}">My Dashboard</a></li>
+                <li class="nav-item"><form method="POST" action="{{ url_for('student_logout') }}" class="m-0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="nav-link btn btn-link" type="submit">Sign out</button></form></li>
+                {% elif session.get("organization_id") %}
 <li class="nav-item"><a class="nav-link" href="{{ url_for('organization_dashboard') }}">Dashboard</a></li>
 <li class="nav-item"><a class="nav-link" href="{{ url_for('organization_students') }}">Students</a></li>
 <li class="nav-item"><a class="nav-link" href="{{ url_for('organization_settings') }}">Settings</a></li>
@@ -83,8 +86,8 @@
                 </li>
                 {% else %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('login') }}">
-                        <i class="bi bi-box-arrow-in-right"></i> Admin Login
+                    <a class="nav-link" href="{{ url_for('portal_home') }}">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
                     </a>
                 </li>
                 {% endif %}

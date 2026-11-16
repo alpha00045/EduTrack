@@ -39,6 +39,14 @@ class FakeCursor:
         return self.rows
 
     def fetchone(self):
+        if self.executed:
+            query = self.executed[-1][0]
+            if "SELECT organization_type FROM organizations" in query:
+                return ("School",)
+            if "INSERT INTO organization_students" in query and "RETURNING id" in query:
+                return (301,)
+            if "INSERT INTO organization_student_enrolments" in query and "RETURNING id" in query:
+                return (901,)
         return self.one
 
     def close(self):
@@ -395,7 +403,7 @@ def test_about_page_remains_public(client):
 def test_guest_navigation_hides_student_and_report_links(client):
     response = client.get("/about")
     assert response.status_code == 200
-    assert b"Admin Login" in response.data
+    assert b"Login" in response.data
     assert b"Students" not in response.data
     assert b"Reports" not in response.data
 
@@ -723,11 +731,13 @@ def test_organization_add_student_scopes_insert_to_current_organization(client, 
     response = client.post(
         "/organization/students/add",
         data={
-            "roll": "501", "name": "Tenant Student",
-            "math": "91", "science": "92", "english": "93",
+            "roll": "501", "name": "Tenant Student", "standard": "Class 8",
+            "academic_year": "2026-27", "date_of_birth": "2010-01-01",
+            "admission_date": "2026-04-01",
         },
     )
-    assert response.status_code == 302
+    assert response.status_code == 200
+    assert b"Student login created" in response.data
     query, params = next(
         (item for item in connection.fake_cursor.executed
          if "INSERT INTO organization_students" in item[0])
@@ -871,3 +881,23 @@ def test_organization_import_parser_rejects_custom_subject_marks_over_100():
     )
     assert records is None
     assert "between 0 and 100" in error
+
+
+
+def test_student_session_cannot_access_organization_admin_pages(client):
+    with client.session_transaction() as session:
+        session["student_account_id"] = 91
+        session["student_id"] = 301
+        session["organization_id"] = 23
+        session["organization_name"] = "Tenant School"
+    response = client.get("/organization/notices")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_portal_home_shows_three_login_roles(client):
+    response = client.get("/portal")
+    assert response.status_code == 200
+    assert b"Admin" in response.data
+    assert b"School / Institute" in response.data
+    assert b"Student" in response.data

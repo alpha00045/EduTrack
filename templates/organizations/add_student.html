@@ -1,13 +1,72 @@
 {% extends "layouts/base.html" %}
-{% block title %}Add Student | EduTrack{% endblock %}
+{% block title %}Student Admission | EduTrack{% endblock %}
 {% block content %}
-<main class="container py-4" style="max-width:760px"><a href="{{ url_for('organization_students') }}" class="small">← Students</a><h1 class="h2 fw-bold mt-2 mb-4">Add student</h1>
-{% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
-<form method="POST" class="card border-0 shadow-sm p-4"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<div class="row g-3"><div class="col-md-6"><label class="form-label">Roll number</label><input class="form-control" name="roll" maxlength="40" required></div>
-<div class="col-md-6"><label class="form-label">Student name</label><input class="form-control" name="name" maxlength="100" required></div>
-<div class="col-md-6"><label class="form-label">Class / Standard</label><input class="form-control" name="standard" maxlength="40" placeholder="e.g. Class 10"></div>
-<div class="col-md-6"><label class="form-label">Semester</label><select class="form-select" name="semester"><option value="">Select semester</option>{% for n in range(1,9) %}<option value="{{ n }}">Semester {{ n }}</option>{% endfor %}</select></div>
-{% for subject_id,subject_name in subjects %}<div class="col-md-4"><label class="form-label">{{ subject_name }} marks</label><input class="form-control" type="number" min="0" max="100" step="0.01" name="subject_{{ subject_id }}" required></div>{% endfor %}
-</div><button class="btn btn-primary mt-4" type="submit">Save student</button></form></main>
+<main class="container py-4" style="max-width:1000px">
+  <a href="{{ url_for('organization_students') }}" class="small">← Students</a>
+  <h1 class="h2 fw-bold mt-2 mb-1">Student admission</h1>
+  <p class="text-muted mb-4">Complete the four sections to create the student's permanent record.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+  {% if credentials %}
+  <div class="alert alert-success">
+    <h2 class="h5">Student login created — copy these details now</h2>
+    <p class="mb-1"><strong>Username:</strong> <code>{{ credentials.username }}</code></p>
+    <p class="mb-2"><strong>Temporary password:</strong> <code>{{ credentials.password }}</code></p>
+    <p class="small mb-0">This password is shown only once. Give it directly to the student. They must change it after their first login. It has not been sent by email or SMS.</p>
+    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="navigator.clipboard.writeText('Username: {{ credentials.username }}\nTemporary password: {{ credentials.password }}')">Copy login details</button>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('organization_students') }}">Go to student list</a>
+  {% else %}
+  <form method="POST" enctype="multipart/form-data" class="card border-0 shadow-sm p-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2 class="h5 fw-bold">Step 1 — Basic student details</h2>
+    <div class="row g-3 mb-4">
+      <div class="col-md-8"><label class="form-label">Student full name *</label><input class="form-control" name="name" maxlength="100" value="{{ form.get('name','') }}" required></div>
+      <div class="col-md-4"><label class="form-label">Date of birth *</label><input class="form-control" type="date" name="date_of_birth" value="{{ form.get('date_of_birth','') }}" required></div>
+      <div class="col-md-6"><label class="form-label">Father's name</label><input class="form-control" name="father_name" maxlength="120"></div>
+      <div class="col-md-6"><label class="form-label">Mother's name</label><input class="form-control" name="mother_name" maxlength="120"></div>
+      <div class="col-md-6"><label class="form-label">Admission date *</label><input class="form-control" type="date" name="admission_date" required></div>
+      <div class="col-md-6"><label class="form-label">Student profile photo (JPG/PNG/WebP, max 2 MB)</label><input class="form-control" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"></div>
+    </div>
+    <hr>
+    <h2 class="h5 fw-bold">Step 2 — Personal and contact details</h2>
+    <div class="row g-3 mb-4">
+      <div class="col-md-4"><label class="form-label">Gender</label><select class="form-select" name="gender"><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></select></div>
+      <div class="col-md-4"><label class="form-label">Blood group (optional)</label><select class="form-select" name="blood_group"><option value="">Select</option>{% for b in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}<option>{{ b }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label">Student phone</label><input class="form-control" name="phone" maxlength="30" type="tel"></div>
+      <div class="col-md-6"><label class="form-label">Student email</label><input class="form-control" name="email" maxlength="254" type="email"></div>
+      <div class="col-12"><label class="form-label">Residential address</label><textarea class="form-control" name="address" rows="2" maxlength="500"></textarea></div>
+      <div class="col-md-6"><label class="form-label">Parent / guardian name</label><input class="form-control" name="guardian_name" maxlength="120"></div>
+      <div class="col-md-3"><label class="form-label">Guardian phone</label><input class="form-control" name="guardian_phone" maxlength="30" type="tel"></div>
+      <div class="col-md-3"><label class="form-label">Guardian email</label><input class="form-control" name="guardian_email" maxlength="254" type="email"></div>
+      <div class="col-md-6"><label class="form-label">Emergency contact name</label><input class="form-control" name="emergency_contact_name" maxlength="120"></div>
+      <div class="col-md-6"><label class="form-label">Emergency contact phone</label><input class="form-control" name="emergency_contact_phone" maxlength="30" type="tel"></div>
+    </div>
+    <hr>
+    <h2 class="h5 fw-bold">Step 3 — Academic details</h2>
+    <div class="row g-3 mb-3">
+      <div class="col-md-4"><label class="form-label">Admission number</label><input class="form-control" name="admission_number" maxlength="80"></div>
+      <div class="col-md-4"><label class="form-label">Roll number *</label><input class="form-control" name="roll" maxlength="40" value="{{ form.get('roll','') }}" required></div>
+      <div class="col-md-4"><label class="form-label">Academic year *</label><input class="form-control" name="academic_year" maxlength="20" placeholder="2026-27" required></div>
+      {% if organization_type == 'School' %}
+      <div class="col-md-6"><label class="form-label">Class / Standard *</label><input class="form-control" name="standard" maxlength="40" placeholder="e.g. Class 10" required></div>
+      <div class="col-md-6"><label class="form-label">Section</label><input class="form-control" name="section" maxlength="30" placeholder="e.g. A"></div>
+      {% else %}
+      <div class="col-md-6"><label class="form-label">Course *</label><input class="form-control" name="course_name" maxlength="120" placeholder="e.g. MCA" required></div>
+      <div class="col-md-6"><label class="form-label">Semester *</label><select class="form-select" name="semester" required><option value="">Select semester</option>{% for n in range(1,13) %}<option value="{{ n }}">Semester {{ n }}</option>{% endfor %}</select></div>
+      {% endif %}
+      <div class="col-12"><label class="form-label">Previous school / institute</label><input class="form-control" name="previous_institution" maxlength="180"></div>
+      <div class="col-12"><label class="form-label">Subjects enrolled</label><div class="row g-2">{% for subject_id,subject_name in subjects %}<div class="col-md-4"><label class="form-check"><input class="form-check-input" type="checkbox" name="subject_ids" value="{{ subject_id }}"><span class="form-check-label">{{ subject_name }}</span></label></div>{% else %}<p class="text-muted small">Add subjects in organization settings first.</p>{% endfor %}</div></div>
+    </div>
+    <hr>
+    <h2 class="h5 fw-bold">Step 4 — Additional information</h2>
+    <div class="row g-3 mb-4">
+      <div class="col-12"><label class="form-label">Medical / other important notes</label><textarea class="form-control" name="notes" rows="3" maxlength="2000"></textarea></div>
+      <div class="col-md-6"><label class="form-label">Student status</label><select class="form-select" name="student_status"><option>Active</option><option>Transferred</option><option>Graduated</option><option>Inactive</option></select></div>
+      <div class="col-md-6"><label class="form-label">Documents (PDF/JPG/PNG/WebP, max 5 MB each)</label><input class="form-control" type="file" name="documents" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" multiple></div>
+    </div>
+    <div class="alert alert-info small">A student portal username and temporary password will be generated. The password is displayed once to the organization admin; no email or SMS will be sent.</div>
+    <div class="d-flex gap-2"><button class="btn btn-primary px-4" type="submit">Save admission and create student account</button><a class="btn btn-outline-secondary" href="{{ url_for('organization_students') }}">Cancel</a></div>
+  </form>
+  {% endif %}
+</main>
 {% endblock %}

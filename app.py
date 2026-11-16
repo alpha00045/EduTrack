@@ -20,6 +20,7 @@ import csv
 import hmac
 import base64
 import zipfile
+import secrets
 from datetime import datetime
 
 import os
@@ -29,6 +30,7 @@ load_dotenv()
 import re
 import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from flask_wtf.csrf import CSRFProtect
 
 from openpyxl import Workbook, load_workbook
@@ -1498,7 +1500,7 @@ def register_organization():
         password = request.form.get("password", "")
         confirm_password = request.form.get("confirm_password", "")
 
-        allowed_types = {"School", "College", "University", "Coaching Institute", "Other"}
+        allowed_types = {"School", "Institute"}
         errors = []
         if not organization_name or len(organization_name) > 150:
             errors.append("Enter an organization name (up to 150 characters).")
@@ -1639,7 +1641,7 @@ def reject_organization(organization_id):
 def organization_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get("organization_id"):
+        if not session.get("organization_id") or session.get("student_account_id"):
             flash("Please sign in with your approved organization account.", "warning")
             return redirect(url_for("organization_login"))
         return f(*args, **kwargs)
@@ -1837,42 +1839,190 @@ def organization_students():
     return render_template("organizations/students.html",students=students,search=search,subjects=subjects,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 
 
-@app.route("/organization/students/add", methods=["GET","POST"])
+@app.route("/organization/students/add", methods=["GET", "POST"])
 @organization_required
 def organization_add_student():
-    oid=session["organization_id"]; conn=get_db_connection(); cur=conn.cursor()
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    temporary_credentials = None
     try:
-        subjects=_organization_subjects(cur,oid)
-        if request.method=="POST":
-            roll=(request.form.get("roll") or "").strip(); name=(request.form.get("name") or "").strip()
-            standard=(request.form.get("standard") or "").strip()[:40] or None
-            semester=(request.form.get("semester") or "").strip()[:20] or None
-            if not roll or len(roll)>40 or not name or len(name)>100:
-                flash("Enter a valid roll number and student name.","danger")
-                return render_template("organizations/add_student.html",subjects=subjects),400
-            marks,error=_organization_subject_values(request.form,subjects)
-            if error:
-                flash(error,"danger"); return render_template("organizations/add_student.html",subjects=subjects),400
-            by_name={n.lower():marks[i] for i,n in subjects}
+        cur.execute("SELECT organization_type FROM organizations WHERE id=%s", (oid,))
+        organization = cur.fetchone()
+        if not organization:
+            abort(403)
+        organization_type = organization[0]
+        if organization_type not in {"School", "Institute"}:
+            abort(403)
+
+        subjects = _organization_subjects(cur, oid)
+        if request.method == "POST":
+            roll = (request.form.get("roll") or "").strip()
+            name = (request.form.get("name") or "").strip()
+            dob = (request.form.get("date_of_birth") or "").strip() or None
+            admission_date = (request.form.get("admission_date") or "").strip() or None
+            admission_number = (request.form.get("admission_number") or "").strip() or None
+            standard = (request.form.get("standard") or "").strip()[:40] or None
+            section = (request.form.get("section") or "").strip()[:30] or None
+            semester = (request.form.get("semester") or "").strip()[:20] or None
+            course_name = (request.form.get("course_name") or "").strip()[:120] or None
+            academic_year = (request.form.get("academic_year") or "").strip()[:20]
+            status = (request.form.get("student_status") or "Active").strip()
+            selected_subjects = request.form.getlist("subject_ids")
+            errors = []
+
+            if not roll or len(roll) > 40:
+                errors.append("Enter a valid roll number (maximum 40 characters).")
+            if not name or len(name) > 100:
+                errors.append("Enter the student's full name (maximum 100 characters).")
+            if not academic_year:
+                errors.append("Enter the academic year.")
+            if status not in {"Active", "Transferred", "Graduated", "Inactive"}:
+                errors.append("Choose a valid student status.")
+            if organization_type == "School" and not standard:
+                errors.append("Enter the student's class or standard.")
+            if organization_type == "Institute" and (not course_name or not semester):
+                errors.append("Enter the course and semester for this institute student.")
+            valid_subject_ids = {str(subject_id) for subject_id, _ in subjects}
+            if any(subject_id not in valid_subject_ids for subject_id in selected_subjects):
+                errors.append("Choose only subjects offered by your organization.")
+
+            photo_upload = request.files.get("photo")
+            photo, photo_error = _valid_image_upload(photo_upload)
+            if photo_error:
+                errors.append(photo_error)
+
+            document_files = []
+            for upload in request.files.getlist("documents"):
+                if not upload or not upload.filename:
+                    continue
+                file_data = upload.read(5 * 1024 * 1024 + 1)
+                if not file_data or len(file_data) > 5 * 1024 * 1024:
+                    errors.append("Each document must be non-empty and no larger than 5 MB.")
+                    continue
+                if file_data.startswith(b"%PDF-"):
+                    mime_type = "application/pdf"
+                elif file_data.startswith(b"\xff\xd8\xff"):
+                    mime_type = "image/jpeg"
+                elif file_data.startswith(b"\x89PNG\r\n\x1a\n"):
+                    mime_type = "image/png"
+                elif len(file_data) >= 12 and file_data[:4] == b"RIFF" and file_data[8:12] == b"WEBP":
+                    mime_type = "image/webp"
+                else:
+                    errors.append("Documents must be PDF, JPG, PNG or WebP files.")
+                    continue
+                document_files.append((secure_filename(upload.filename)[:180] or "student-document", mime_type, file_data))
+
+            if errors:
+                for error in errors:
+                    flash(error, "danger")
+                return render_template(
+                    "organizations/add_student.html",
+                    subjects=subjects, organization_type=organization_type, form=request.form
+                ), 400
+
+            photo_data, photo_mime = photo if photo else (None, None)
+            father_name = (request.form.get("father_name") or "").strip()[:120] or None
+            mother_name = (request.form.get("mother_name") or "").strip()[:120] or None
+            guardian_name = (request.form.get("guardian_name") or "").strip()[:120] or None
+            guardian_phone = (request.form.get("guardian_phone") or "").strip()[:30] or None
+            guardian_email = (request.form.get("guardian_email") or "").strip().lower() or None
+            phone = (request.form.get("phone") or "").strip()[:30] or None
+            email = (request.form.get("email") or "").strip().lower() or None
+            address = (request.form.get("address") or "").strip()[:500] or None
+            emergency_name = (request.form.get("emergency_contact_name") or "").strip()[:120] or None
+            emergency_phone = (request.form.get("emergency_contact_phone") or "").strip()[:30] or None
+            previous_institution = (request.form.get("previous_institution") or "").strip()[:180] or None
+            notes = (request.form.get("notes") or "").strip()[:2000] or None
+            gender = (request.form.get("gender") or "").strip()[:40] or None
+            blood_group = (request.form.get("blood_group") or "").strip()[:5] or None
+
             try:
-                cur.execute("""INSERT INTO organization_students
-                    (organization_id,roll_number,name,math,science,english)
-                    VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
-                    (oid,roll,name,by_name.get("math",0),by_name.get("science",0),by_name.get("english",0)))
-                sid=cur.fetchone()[0]
-                _save_organization_subject_values(cur,oid,sid,marks)
-                cur.execute("""INSERT INTO organization_student_profiles
-                    (organization_id,student_id,admission_standard,semester)
-                    VALUES (%s,%s,%s,%s)
-                    ON CONFLICT (organization_id,student_id) DO UPDATE SET
-                    admission_standard=EXCLUDED.admission_standard,semester=EXCLUDED.semester,
-                    updated_at=CURRENT_TIMESTAMP""",(oid,sid,standard,semester))
-                conn.commit(); flash("Student added successfully.","success")
-                return redirect(url_for("organization_students"))
+                cur.execute(
+                    """INSERT INTO organization_students
+                       (organization_id, roll_number, name, math, science, english)
+                       VALUES (%s,%s,%s,0,0,0) RETURNING id""",
+                    (oid, roll, name)
+                )
+                student_id = cur.fetchone()[0]
+                cur.execute(
+                    """INSERT INTO organization_student_profiles
+                       (organization_id,student_id,date_of_birth,gender,email,phone,
+                        guardian_name,guardian_phone,address,admission_number,joining_date,
+                        admission_standard,semester,notes,photo_data,photo_mime,
+                        father_name,mother_name,blood_group,guardian_email,
+                        emergency_contact_name,emergency_contact_phone,section,academic_year,
+                        previous_institution,course_name,student_status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                               %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (oid,student_id,dob,gender,email,phone,guardian_name,guardian_phone,
+                     address,admission_number,admission_date,standard,semester,notes,
+                     photo_data,photo_mime,father_name,mother_name,blood_group,guardian_email,
+                     emergency_name,emergency_phone,section,academic_year,
+                     previous_institution,course_name,status)
+                )
+
+                for document_name, mime_type, file_data in document_files:
+                    cur.execute(
+                        """INSERT INTO organization_student_documents
+                           (organization_id,student_id,document_name,mime_type,file_data)
+                           VALUES (%s,%s,%s,%s,%s)""",
+                        (oid,student_id,document_name,mime_type,file_data)
+                    )
+
+                cur.execute(
+                    """INSERT INTO organization_student_enrolments
+                       (organization_id,student_id,academic_year,organization_type,
+                        standard,section,course_name,semester,start_date,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (oid,student_id,academic_year,organization_type,standard,section,
+                     course_name,semester,admission_date,status)
+                )
+                enrolment_id = cur.fetchone()[0]
+                for subject_id in selected_subjects:
+                    cur.execute(
+                        """INSERT INTO organization_student_enrolled_subjects
+                           (organization_id,student_id,enrolment_id,subject_id)
+                           VALUES (%s,%s,%s,%s)""",
+                        (oid,student_id,enrolment_id,int(subject_id))
+                    )
+
+                # Create a one-time temporary password for the organization admin to hand over.
+                # It is never sent by email/SMS and only its hash is stored.
+                username_roll = re.sub(r"[^A-Za-z0-9._-]", "", roll)[:32] or str(student_id)
+                username = f"ET{oid}-{student_id}"
+                temporary_password = secrets.token_urlsafe(10)
+                cur.execute(
+                    """INSERT INTO organization_student_accounts
+                       (organization_id,student_id,username,password_hash,must_change_password,account_status)
+                       VALUES (%s,%s,%s,%s,TRUE,%s)""",
+                    (oid,student_id,username,generate_password_hash(temporary_password),
+                     "Active" if status == "Active" else "Disabled")
+                )
+                conn.commit()
+                temporary_credentials = {"username": username, "password": temporary_password}
+                flash("Student admission saved successfully. Copy the temporary login details now.", "success")
+                return render_template(
+                    "organizations/add_student.html", subjects=subjects,
+                    organization_type=organization_type, credentials=temporary_credentials
+                )
             except psycopg2.errors.UniqueViolation:
-                conn.rollback(); flash("This roll number is already used in your organization.","danger")
-    finally: cur.close(); conn.close()
-    return render_template("organizations/add_student.html",subjects=subjects)
+                conn.rollback()
+                flash("That roll number or student login already exists in your organization.", "danger")
+                return render_template(
+                    "organizations/add_student.html",
+                    subjects=subjects, organization_type=organization_type, form=request.form
+                ), 400
+            except Exception:
+                conn.rollback()
+                raise
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "organizations/add_student.html", subjects=subjects, organization_type=organization_type
+    )
 
 
 @app.route("/organization/students/<path:roll>")
@@ -2834,3 +2984,201 @@ def organization_download_student_result(roll):
 if __name__ == "__main__":
     app.run(debug=True)
     
+
+
+# ---------------------------------------------------------------------------
+# Student portal and organization notices
+# ---------------------------------------------------------------------------
+
+def student_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("student_account_id") or not session.get("student_id"):
+            flash("Please sign in with your student account.", "warning")
+            return redirect(url_for("student_login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route("/portal")
+def portal_home():
+    """Common entry point for the three EduTrack user roles."""
+    return render_template("auth/portal.html")
+
+
+@app.route("/student/login", methods=["GET", "POST"])
+def student_login():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """SELECT a.id,a.organization_id,a.student_id,a.password_hash,
+                          a.must_change_password,a.account_status,s.name,o.organization_name
+                   FROM organization_student_accounts a
+                   JOIN organization_students s
+                     ON s.organization_id=a.organization_id AND s.id=a.student_id
+                   JOIN organizations o ON o.id=a.organization_id
+                   WHERE a.username=%s""",
+                (username,)
+            )
+            account = cur.fetchone()
+        finally:
+            cur.close()
+            conn.close()
+
+        if not account or not check_password_hash(account[3], password):
+            flash("Invalid student username or password.", "danger")
+        elif account[5] != "Active":
+            flash("This student account is not active. Contact your school or institute.", "danger")
+        else:
+            session.clear()
+            session["student_account_id"] = account[0]
+            session["organization_id"] = account[1]
+            session["student_id"] = account[2]
+            session["student_name"] = account[6]
+            session["organization_name"] = account[7]
+            if account[4]:
+                return redirect(url_for("student_change_password"))
+            return redirect(url_for("student_dashboard"))
+    return render_template("auth/student_login.html")
+
+
+@app.route("/student/change-password", methods=["GET", "POST"])
+@student_required
+def student_change_password():
+    if request.method == "POST":
+        password = request.form.get("password") or ""
+        confirmation = request.form.get("confirm_password") or ""
+        if len(password) < 12:
+            flash("Choose a password with at least 12 characters.", "danger")
+        elif password != confirmation:
+            flash("The password confirmation does not match.", "danger")
+        else:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """UPDATE organization_student_accounts
+                       SET password_hash=%s,must_change_password=FALSE,updated_at=CURRENT_TIMESTAMP
+                       WHERE id=%s AND organization_id=%s AND student_id=%s""",
+                    (generate_password_hash(password),session["student_account_id"],
+                     session["organization_id"],session["student_id"])
+                )
+                conn.commit()
+            finally:
+                cur.close()
+                conn.close()
+            flash("Your password has been updated.", "success")
+            return redirect(url_for("student_dashboard"))
+    return render_template("auth/student_change_password.html")
+
+
+@app.route("/student")
+@app.route("/student/dashboard")
+@student_required
+def student_dashboard():
+    oid = session["organization_id"]
+    sid = session["student_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT s.roll_number,s.name,p.date_of_birth,p.gender,p.admission_number,
+                      p.admission_standard,p.semester,p.course_name,p.section,p.academic_year,
+                      p.student_status
+               FROM organization_students s
+               LEFT JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND s.id=%s""",
+            (oid,sid)
+        )
+        profile = cur.fetchone()
+        if not profile:
+            abort(404)
+        cur.execute(
+            """SELECT academic_year,standard,term,subject,marks_obtained,maximum_marks,recorded_at
+               FROM organization_student_assessments
+               WHERE organization_id=%s AND student_id=%s
+               ORDER BY academic_year DESC,recorded_at DESC""",
+            (oid,sid)
+        )
+        assessments = cur.fetchall()
+        cur.execute(
+            """SELECT title,body,published_at FROM organization_notices
+               WHERE organization_id=%s AND published=TRUE AND audience IN ('Students','All')
+               ORDER BY published_at DESC NULLS LAST,created_at DESC LIMIT 50""",
+            (oid,)
+        )
+        notices = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template(
+        "student/dashboard.html", profile=profile, assessments=assessments, notices=notices,
+        organization_name=session.get("organization_name","School / Institute")
+    )
+
+
+@app.route("/student/logout", methods=["POST"])
+@student_required
+def student_logout():
+    session.clear()
+    flash("You have been signed out.", "success")
+    return redirect(url_for("portal_home"))
+
+
+@app.route("/organization/notices", methods=["GET", "POST"])
+@organization_required
+def organization_notices():
+    oid = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == "POST":
+            title = (request.form.get("title") or "").strip()
+            body = (request.form.get("body") or "").strip()
+            audience = (request.form.get("audience") or "Students").strip()
+            published = request.form.get("published") == "on"
+            if not title or len(title) > 180 or not body or audience not in {"Students","All"}:
+                flash("Enter a valid notice title, message and audience.", "danger")
+            else:
+                cur.execute(
+                    """INSERT INTO organization_notices
+                       (organization_id,title,body,audience,published,published_at)
+                       VALUES (%s,%s,%s,%s,%s,CASE WHEN %s THEN CURRENT_TIMESTAMP ELSE NULL END)""",
+                    (oid,title,body,audience,published,published)
+                )
+                conn.commit()
+                flash("Notice saved successfully.", "success")
+        cur.execute(
+            """SELECT id,title,body,audience,published,published_at,created_at
+               FROM organization_notices WHERE organization_id=%s
+               ORDER BY created_at DESC LIMIT 100""",
+            (oid,)
+        )
+        notices = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    return render_template("organizations/notices.html", notices=notices)
+
+
+@app.route("/organization/notices/<int:notice_id>/delete", methods=["POST"])
+@organization_required
+def organization_delete_notice(notice_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "DELETE FROM organization_notices WHERE id=%s AND organization_id=%s",
+            (notice_id,session["organization_id"])
+        )
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    flash("Notice deleted.", "success")
+    return redirect(url_for("organization_notices"))

@@ -1,0 +1,13 @@
+{% extends "layouts/base.html" %}
+{% block title %}Notices | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:900px"><a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2">Manage notices</h1><p class="text-muted">Only students belonging to your organization can see published notices.</p>
+{% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+<form method="POST" class="card border-0 shadow-sm p-4 mb-4"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5">Create a notice</h2>
+  <div class="mb-3"><label class="form-label">Title</label><input class="form-control" name="title" maxlength="180" required></div>
+  <div class="mb-3"><label class="form-label">Message</label><textarea class="form-control" name="body" rows="4" required></textarea></div>
+  <div class="row align-items-center"><div class="col-md-5"><label class="form-label">Audience</label><select class="form-select" name="audience"><option value="Students">Students</option><option value="All">All</option></select></div><div class="col-md-4"><label class="form-check mt-4"><input class="form-check-input" type="checkbox" name="published"><span class="form-check-label">Publish now</span></label></div><div class="col-md-3"><button class="btn btn-primary mt-3">Save notice</button></div></div>
+</form>
+<h2 class="h5">Previous notices</h2>{% for n in notices %}<article class="card border-0 shadow-sm p-3 mb-3"><div class="d-flex justify-content-between gap-3"><div><strong>{{ n[1] }}</strong><p class="mb-1">{{ n[2] }}</p><small class="text-muted">{{ n[3] }} · {{ 'Published' if n[4] else 'Draft' }}</small></div><form method="POST" action="{{ url_for('organization_delete_notice',notice_id=n[0]) }}" onsubmit="return confirm('Delete this notice?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger">Delete</button></form></div></article>{% else %}<p class="text-muted">No notices created yet.</p>{% endfor %}
+</main>
+{% endblock %}

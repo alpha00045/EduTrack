@@ -2473,58 +2473,66 @@ def organization_attendance():
 @app.route("/organization/analytics")
 @organization_required
 def organization_analytics():
-    oid=session["organization_id"]
-    standard=request.args.get("standard","").strip()[:40]
-    semester=request.args.get("semester","").strip()[:20]
-    conn=get_db_connection(); cur=conn.cursor()
+    oid = session["organization_id"]
+    standard = request.args.get("standard", "").strip()[:40]
+    semester = request.args.get("semester", "").strip()[:20]
+    conn = get_db_connection()
+    cur = conn.cursor()
     try:
-        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard",(oid,))
-        standards=[x[0] for x in cur.fetchall()]
-        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester",(oid,))
-        semesters=[x[0] for x in cur.fetchall()]
-        clauses=["s.organization_id=%s"]; params=[oid]
-        if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
-        if semester: clauses.append("p.semester=%s"); params.append(semester)
-        where=" AND ".join(clauses)
-        cur.execute("""SELECT COUNT(DISTINCT s.id),COALESCE(ROUND(AVG(m.marks),2),0),
-            COALESCE(MAX(avg_marks.avg),0),COALESCE(MIN(avg_marks.avg),0)
+        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard", (oid,))
+        standards = [r[0] for r in cur.fetchall()]
+        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester", (oid,))
+        semesters = [r[0] for r in cur.fetchall()]
+        clauses = ["s.organization_id=%s"]
+        params = [oid]
+        if standard:
+            clauses.append("p.admission_standard=%s")
+            params.append(standard)
+        if semester:
+            clauses.append("p.semester=%s")
+            params.append(semester)
+        where = " AND ".join(clauses)
+        cur.execute("""SELECT s.roll_number,s.name,AVG(m.marks)
             FROM organization_students s
             LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
             LEFT JOIN organization_student_subject_marks m ON m.organization_id=s.organization_id AND m.student_id=s.id
-            LEFT JOIN (SELECT organization_id,student_id,AVG(marks) AS avg FROM organization_student_subject_marks GROUP BY organization_id,student_id) avg_marks
-            ON avg_marks.organization_id=s.organization_id AND avg_marks.student_id=s.id
-            WHERE """+where,tuple(params))
-        summary=cur.fetchone(); subjects=_organization_subjects(cur,oid); subject_averages=[]
-        for subject_id,subject_name in subjects:
-            cur.execute("""SELECT COALESCE(ROUND(AVG(m.marks),2),0)
-                FROM organization_student_subject_marks m JOIN organization_students s
-                ON s.organization_id=m.organization_id AND s.id=m.student_id
-                LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
-                WHERE """+where+" AND m.subject_id=%s",tuple(params+[subject_id]))
-            subject_averages.append((subject_name,cur.fetchone()[0]))
+            WHERE """ + where + """ GROUP BY s.id,s.roll_number,s.name ORDER BY s.roll_number""", tuple(params))
+        students = []
+        grades = {g: 0 for g in ("A1","A2","B1","B2","C1","C2","D","F")}
+        bands = {"Below 40": 0, "40–59": 0, "60–79": 0, "80–100": 0}
+        for roll, name, raw_average in cur.fetchall():
+            average = round(float(raw_average or 0), 2)
+            grade = calculate_grade(average)
+            students.append({"roll": roll, "name": name, "average": average, "grade": grade})
+            grades[grade] += 1
+            bands["Below 40" if average < 40 else "40–59" if average < 60 else "60–79" if average < 80 else "80–100"] += 1
+        cur.execute("""SELECT sub.subject_name,ROUND(AVG(m.marks),2)
+            FROM organization_student_subject_marks m
+            JOIN organization_students s ON s.organization_id=m.organization_id AND s.id=m.student_id
+            JOIN organization_subjects sub ON sub.organization_id=m.organization_id AND sub.id=m.subject_id
+            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE """ + where + """ GROUP BY sub.id,sub.subject_name ORDER BY sub.subject_name""", tuple(params))
+        subject_averages = dict(cur.fetchall())
         cur.execute("""SELECT a.status,COUNT(*) FROM organization_attendance a
             JOIN organization_students s ON s.organization_id=a.organization_id AND s.id=a.student_id
             LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
-            WHERE """+where+" AND a.attendance_date=CURRENT_DATE GROUP BY a.status",tuple(params))
-        attendance_counts=dict(cur.fetchall())
-
-        cur.execute("""SELECT AVG(m.marks) FROM organization_students s
-            JOIN organization_student_subject_marks m
-              ON m.organization_id=s.organization_id AND m.student_id=s.id
-            LEFT JOIN organization_student_profiles p
-              ON p.organization_id=s.organization_id AND p.student_id=s.id
-            WHERE """+where+" GROUP BY s.id",tuple(params))
-        grade_labels=("A1","A2","B1","B2","C1","C2","D","F")
-        grade_counts={label:0 for label in grade_labels}
-        for (student_average,) in cur.fetchall():
-            grade_counts[calculate_grade(float(student_average or 0))] += 1
-        grade_distribution=[(label,grade_counts[label]) for label in grade_labels]
-        grade_total=sum(grade_counts.values())
-    finally: cur.close(); conn.close()
-    return render_template("organizations/analytics.html",summary=summary,subjects=subject_averages,
-        attendance_counts=attendance_counts,standards=standards,semesters=semesters,
-        selected_standard=standard,selected_semester=semester,
-        grade_distribution=grade_distribution,grade_total=grade_total)
+            WHERE """ + where + """ AND a.attendance_date=CURRENT_DATE GROUP BY a.status""", tuple(params))
+        attendance_counts = dict(cur.fetchall())
+    finally:
+        cur.close()
+        conn.close()
+    total = len(students)
+    overall = calculate_average([s["average"] for s in students])
+    pass_mark = 33
+    passed = sum(1 for s in students if s["average"] >= pass_mark)
+    return render_template("analytics/dashboard.html",
+        total_students=total, overall_average=overall, passed=passed, failed=total-passed,
+        subject_averages=subject_averages, grade_counts=grades, performance_bands=bands,
+        assessment_trends=[], top_students=sorted(students,key=lambda s:s["average"],reverse=True)[:5],
+        organizations=[], selected_org="organization", standards=standards, semesters=semesters,
+        selected_standard=standard, selected_semester=semester, organization_mode=True,
+        organization_name=session.get("organization_name","your organization"),
+        attendance_counts=attendance_counts)
 
 
 @app.route("/organization/settings", methods=["GET", "POST"])

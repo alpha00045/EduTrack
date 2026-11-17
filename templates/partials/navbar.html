@@ -23,8 +23,10 @@
                 <li class="nav-item"><form method="POST" action="{{ url_for('student_logout') }}" class="m-0"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="nav-link btn btn-link" type="submit">Sign out</button></form></li>
                 {% elif session.get("organization_id") %}
 <li class="nav-item"><a class="nav-link" href="{{ url_for('organization_dashboard') }}">Dashboard</a></li>
-<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_students') }}">Students</a></li>
-<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_settings') }}">Settings</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_students') }}"><i class="bi bi-people me-1"></i>Students</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_attendance') }}"><i class="bi bi-calendar-check me-1"></i>Attendance</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_analytics') }}"><i class="bi bi-graph-up me-1"></i>Analytics</a></li>
+<li class="nav-item"><a class="nav-link" href="{{ url_for('organization_settings') }}"><i class="bi bi-gear me-1"></i>Settings</a></li>
 {% elif session.get("admin") %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('index') }}">Dashboard</a>

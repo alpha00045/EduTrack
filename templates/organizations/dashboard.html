@@ -1,16 +1,157 @@
 {% extends "layouts/base.html" %}
-{% block title %}{{ organization_name }} Dashboard | EduTrack{% endblock %}
+{% block title %}Dashboard · {{ organization_name }} | EduTrack{% endblock %}
+
 {% block content %}
-<main class="container py-4">
-  <div class="mb-4"><span class="badge text-bg-success mb-2">Verified organization</span><h1 class="h2 fw-bold">Welcome, {{ organization_name }}</h1><p class="text-muted">Your institution's student records are kept separate from other organizations.</p></div>
-  <div class="row g-3 mb-4">
-    <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="text-muted">Total students</div><div class="display-6 fw-bold text-primary">{{ total_students }}</div></div></div>
-    <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="text-muted">Class average</div><div class="display-6 fw-bold">{{ average }}%</div></div></div>
-    <div class="col-md-4"><div class="card border-0 shadow-sm p-3"><div class="text-muted">Highest average</div><div class="display-6 fw-bold">{{ highest }}%</div></div></div>
+<main class="container-fluid dashboard-shell px-3 px-lg-4 py-4 py-lg-5">
+  <section class="dashboard-welcome mb-4 mb-lg-5">
+    <div>
+      <div class="eyebrow text-uppercase mb-2">Organization workspace</div>
+      <h1 class="welcome-title mb-2">Welcome back, {{ organization_name }}</h1>
+      <p class="welcome-copy mb-3">Manage your students, academic records and daily activities from one place.</p>
+      <span class="badge rounded-pill text-bg-light text-primary px-3 py-2">
+        <i class="bi bi-patch-check-fill me-1"></i> Verified organization
+      </span>
+    </div>
+    <div class="d-flex flex-column gap-2">
+      <a class="btn btn-light quick-add px-4 py-3" href="{{ url_for('organization_add_student') }}">
+        <i class="bi bi-person-plus-fill me-2"></i>Add new student
+      </a>
+      <span class="welcome-date text-center"><i class="bi bi-shield-check me-1"></i>Your records are private to this organization</span>
+    </div>
+  </section>
+
+  <section class="mb-4 mb-lg-5" aria-label="Organization overview">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="section-heading mb-1">At a glance</h2>
+        <p class="section-subtitle mb-0">A quick overview of your academic records</p>
+      </div>
+      <span class="live-pill"><span class="live-dot"></span> Organization overview</span>
+    </div>
+    <div class="row g-3">
+      <div class="col-12 col-sm-6 col-xl-4">
+        <article class="metric-card metric-blue h-100">
+          <div class="metric-top">
+            <span class="metric-label text-uppercase">Total students</span>
+            <span class="metric-icon"><i class="bi bi-people-fill"></i></span>
+          </div>
+          <div class="metric-value">{{ total_students }}</div>
+          <div class="metric-caption">Students registered with your organization</div>
+        </article>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-4">
+        <article class="metric-card metric-violet h-100">
+          <div class="metric-top">
+            <span class="metric-label text-uppercase">Class average</span>
+            <span class="metric-icon"><i class="bi bi-bar-chart-line-fill"></i></span>
+          </div>
+          <div class="metric-value">{{ average }}<small>%</small></div>
+          <div class="metric-caption">Average performance across recorded results</div>
+        </article>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-4">
+        <article class="metric-card metric-green h-100">
+          <div class="metric-top">
+            <span class="metric-label text-uppercase">Highest average</span>
+            <span class="metric-icon"><i class="bi bi-trophy-fill"></i></span>
+          </div>
+          <div class="metric-value">{{ highest }}<small>%</small></div>
+          <div class="metric-caption">Highest student average in the records</div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-4 align-items-start">
+    <section class="col-12 col-xl-8" aria-label="Recent students">
+      <div class="surface-card">
+        <div class="surface-heading">
+          <div>
+            <h2 class="section-heading mb-1">Recent students</h2>
+            <p class="section-subtitle mb-0">A snapshot of student academic performance</p>
+          </div>
+          <a class="text-link" href="{{ url_for('organization_students') }}">View all <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+        {% if students %}
+        <div class="table-responsive">
+          <table class="table dashboard-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">ROLL NO.</th>
+                <th scope="col">STUDENT</th>
+                {% for subject_id, subject_name in subjects %}
+                <th scope="col">{{ subject_name }}</th>
+                {% endfor %}
+                <th scope="col">AVERAGE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for student in students %}
+              <tr>
+                <td><span class="rank-chip">{{ student.roll }}</span></td>
+                <td>
+                  <a class="student-name" href="{{ url_for('organization_student_details', roll=student.roll) }}">{{ student.name }}</a>
+                  <div class="student-meta">Student record</div>
+                </td>
+                {% for subject_id, subject_name in subjects %}
+                <td>{{ student.marks.get(subject_id, '—') }}</td>
+                {% endfor %}
+                <td><strong>{{ student.average }}%</strong></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon"><i class="bi bi-mortarboard"></i></div>
+          <h3>Your student directory starts here</h3>
+          <p class="mb-3">Add your first student to begin managing admissions and academic records.</p>
+          <a class="btn btn-primary" href="{{ url_for('organization_add_student') }}"><i class="bi bi-person-plus me-2"></i>Add first student</a>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <aside class="col-12 col-xl-4" aria-label="Quick actions">
+      <div class="surface-card">
+        <div class="surface-heading">
+          <div>
+            <h2 class="section-heading mb-1">Quick actions</h2>
+            <p class="section-subtitle mb-0">Common organization tasks</p>
+          </div>
+          <i class="bi bi-lightning-charge text-primary fs-5"></i>
+        </div>
+        <div class="quick-action-list">
+          <a class="quick-action" href="{{ url_for('organization_add_student') }}">
+            <span class="action-icon action-blue"><i class="bi bi-person-plus"></i></span>
+            <span><strong>Add a student</strong><small>Register a new student profile</small></span>
+            <i class="bi bi-chevron-right action-chevron"></i>
+          </a>
+          <a class="quick-action" href="{{ url_for('organization_students') }}">
+            <span class="action-icon action-purple"><i class="bi bi-people"></i></span>
+            <span><strong>Student directory</strong><small>Search and manage student records</small></span>
+            <i class="bi bi-chevron-right action-chevron"></i>
+          </a>
+          <a class="quick-action" href="{{ url_for('organization_exams') }}">
+            <span class="action-icon action-green"><i class="bi bi-journal-check"></i></span>
+            <span><strong>Exams & results</strong><small>Create exams and manage marks</small></span>
+            <i class="bi bi-chevron-right action-chevron"></i>
+          </a>
+          <a class="quick-action" href="{{ url_for('organization_notices') }}">
+            <span class="action-icon action-amber"><i class="bi bi-megaphone"></i></span>
+            <span><strong>Notices</strong><small>Publish updates for your students</small></span>
+            <i class="bi bi-chevron-right action-chevron"></i>
+          </a>
+          <a class="quick-action" href="{{ url_for('organization_analytics') }}">
+            <span class="action-icon action-blue"><i class="bi bi-graph-up-arrow"></i></span>
+            <span><strong>Analytics</strong><small>Review academic performance</small></span>
+            <i class="bi bi-chevron-right action-chevron"></i>
+          </a>
+        </div>
+        <div class="dashboard-tip"><i class="bi bi-info-circle-fill me-2"></i><span>Student records and academic history remain separated by organization.</span></div>
+      </div>
+    </aside>
   </div>
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><h2 class="h4 fw-bold mb-0">Recent students</h2><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" href="{{ url_for('organization_students') }}">View students</a><a class="btn btn-primary" href="{{ url_for('organization_add_student') }}">Add student</a><a class="btn btn-outline-secondary" href="{{ url_for('organization_analytics') }}">Analytics</a><a class="btn btn-outline-secondary" href="{{ url_for('organization_notices') }}">Notices</a><a class="btn btn-outline-secondary" href="{{ url_for('organization_exams') }}">Exams</a></div></div>
-  <div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Roll number</th><th>Name</th>{% for subject_id,subject_name in subjects %}<th>{{ subject_name }}</th>{% endfor %}<th>Average</th></tr></thead><tbody>
-  {% for student in students %}<tr><td>{{ student.roll }}</td><td><a href="{{ url_for('organization_student_details', roll=student.roll) }}">{{ student.name }}</a></td>{% for subject_id,subject_name in subjects %}<td>{{ student.marks.get(subject_id, '—') }}</td>{% endfor %}<td>{{ student.average }}%</td></tr>{% else %}<tr><td colspan="{{ subjects|length + 3 }}" class="text-center text-muted py-4">No students yet. Add your first student to get started.</td></tr>{% endfor %}
-  </tbody></table></div></div>
 </main>
 {% endblock %}

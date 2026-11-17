@@ -2507,10 +2507,24 @@ def organization_analytics():
             LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
             WHERE """+where+" AND a.attendance_date=CURRENT_DATE GROUP BY a.status",tuple(params))
         attendance_counts=dict(cur.fetchall())
+
+        cur.execute("""SELECT AVG(m.marks) FROM organization_students s
+            JOIN organization_student_subject_marks m
+              ON m.organization_id=s.organization_id AND m.student_id=s.id
+            LEFT JOIN organization_student_profiles p
+              ON p.organization_id=s.organization_id AND p.student_id=s.id
+            WHERE """+where+" GROUP BY s.id",tuple(params))
+        grade_labels=("A1","A2","B1","B2","C1","C2","D","F")
+        grade_counts={label:0 for label in grade_labels}
+        for (student_average,) in cur.fetchall():
+            grade_counts[calculate_grade(float(student_average or 0))] += 1
+        grade_distribution=[(label,grade_counts[label]) for label in grade_labels]
+        grade_total=sum(grade_counts.values())
     finally: cur.close(); conn.close()
     return render_template("organizations/analytics.html",summary=summary,subjects=subject_averages,
         attendance_counts=attendance_counts,standards=standards,semesters=semesters,
-        selected_standard=standard,selected_semester=semester)
+        selected_standard=standard,selected_semester=semester,
+        grade_distribution=grade_distribution,grade_total=grade_total)
 
 
 @app.route("/organization/settings", methods=["GET", "POST"])

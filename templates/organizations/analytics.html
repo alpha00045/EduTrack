@@ -1,12 +1,34 @@
 {% extends "layouts/base.html" %}
-{% block title %}Organization Analytics | EduTrack{% endblock %}
+{% block title %}Academic Analytics | EduTrack{% endblock %}
 {% block content %}
-<main class="container py-4"><a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2 mb-4">Analytics</h1>
-<form method="GET" class="card border-0 shadow-sm p-3 mb-4"><div class="row g-2 align-items-end">
-<div class="col-md-4"><label class="form-label">Class / Standard</label><select class="form-select" name="standard"><option value="">All Classes</option>{% for value in standards %}<option value="{{ value }}" {% if selected_standard == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
-<div class="col-md-4"><label class="form-label">Semester</label><select class="form-select" name="semester"><option value="">All Semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
-<div class="col-auto"><button class="btn btn-primary">Apply</button><a class="btn btn-outline-secondary ms-1" href="{{ url_for('organization_analytics') }}">Clear</a></div></div></form>
-<div class="row g-3 mb-4">{% for label,value in [('Total students',summary[0]),('Average score',summary[1] ~ '%'),('Highest average',summary[2] ~ '%'),('Lowest average',summary[3] ~ '%')] %}<div class="col-sm-6 col-xl-3"><div class="card border-0 shadow-sm p-3 h-100"><div class="text-muted">{{ label }}</div><div class="display-6 fw-bold">{{ value }}</div></div></div>{% endfor %}</div>
-<div class="card border-0 shadow-sm p-4 mb-4"><h2 class="h5 fw-bold">Subject averages</h2>{% for label,value in subjects %}<div class="mb-3"><div class="d-flex justify-content-between"><span>{{ label }}</span><strong>{{ value }}%</strong></div><div class="progress"><div class="progress-bar" role="progressbar" style="width: {{ value }}%" aria-valuenow="{{ value }}" aria-valuemin="0" aria-valuemax="100"></div></div>{% else %}<p class="text-muted mb-0">No subjects configured yet.</p>{% endfor %}</div>
-<div class="card border-0 shadow-sm p-4"><h2 class="h5 fw-bold">Today's attendance</h2><div class="row g-3">{% for key,label in [('present','Present'),('absent','Absent'),('late','Late')] %}<div class="col-md-4"><div class="border rounded p-3"><div class="text-muted">{{ label }}</div><div class="h3 mb-0">{{ attendance_counts.get(key,0) }}</div></div></div>{% endfor %}</div></div></main>
+<main class="container-fluid px-3 px-lg-4 py-4 feature-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div><p class="eyebrow text-primary mb-1">PERFORMANCE OVERVIEW</p><h1 class="h2 fw-bold mb-1">Academic Analytics</h1><p class="text-muted mb-0">A summary of student results and subject performance for {{ session.get('organization_name', 'your organization') }}.</p></div>
+    <a class="btn btn-outline-primary" href="{{ url_for('organization_attendance') }}"><i class="bi bi-calendar-check me-2"></i>Open attendance</a>
+  </div>
+  <form method="GET" class="surface-card p-3 p-lg-4 mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5"><label class="form-label" for="standardFilter">Class / Standard</label><select class="form-select" id="standardFilter" name="standard"><option value="">All Classes</option>{% for value in standards %}<option value="{{ value }}" {% if selected_standard == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-md-5"><label class="form-label" for="semesterFilter">Semester</label><select class="form-select" id="semesterFilter" name="semester"><option value="">All Semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1">Apply</button><a class="btn btn-outline-secondary" href="{{ url_for('organization_analytics') }}">Clear</a></div>
+    </div>
+  </form>
+  <div class="row g-3 mb-4">
+    {% for label,value,icon,color in [('Total students',summary[0],'bi-people','primary'),('Overall average',summary[1] ~ '%','bi-bar-chart-line','info'),('Highest average',summary[2] ~ '%','bi-trophy','success'),('Lowest average',summary[3] ~ '%','bi-graph-down','warning')] %}
+    <div class="col-6 col-xl-3"><article class="surface-card p-3 p-lg-4 h-100"><div class="d-flex justify-content-between align-items-center"><span class="text-muted">{{ label }}</span><i class="bi {{ icon }} text-{{ color }} fs-4"></i></div><div class="display-6 fw-bold mt-2">{{ value }}</div></article></div>
+    {% endfor %}
+  </div>
+  <div class="row g-4 mb-4">
+    <section class="col-12 col-xl-7"><div class="surface-card p-3 p-lg-4 h-100"><h2 class="h5 fw-bold mb-4">Average by subject</h2>
+      {% for label,value in subjects %}<div class="mb-4"><div class="d-flex justify-content-between mb-2"><span class="fw-semibold">{{ label }}</span><strong>{{ value }}%</strong></div><div class="progress" style="height:12px"><div class="progress-bar" role="progressbar" style="width:{{ value }}%" aria-valuenow="{{ value }}" aria-valuemin="0" aria-valuemax="100"></div></div></div>{% else %}<p class="text-muted mb-0">No subject results are available yet.</p>{% endfor %}
+    </div></section>
+    <section class="col-12 col-xl-5"><div class="surface-card p-3 p-lg-4 h-100"><h2 class="h5 fw-bold mb-4">Grade distribution</h2>
+      {% for grade,count in grade_distribution %}<div class="d-flex align-items-center gap-3 mb-3"><span class="badge text-bg-light border" style="min-width:42px">{{ grade }}</span><div class="progress flex-grow-1" style="height:12px"><div class="progress-bar" role="progressbar" style="width:{{ (count / grade_total * 100) if grade_total else 0 }}%" aria-valuenow="{{ count }}" aria-valuemin="0" aria-valuemax="{{ grade_total }}"></div></div><strong class="text-end" style="min-width:28px">{{ count }}</strong></div>{% endfor %}
+      {% if not grade_total %}<p class="text-muted mb-0">Grade data will appear after marks are recorded.</p>{% endif %}
+    </div></section>
+  </div>
+  <section class="surface-card p-3 p-lg-4"><div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><h2 class="h5 fw-bold mb-1">Today's attendance</h2><p class="text-muted small mb-0">Daily attendance totals for your organization</p></div><a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_attendance') }}">Manage attendance <i class="bi bi-arrow-right ms-1"></i></a></div>
+    <div class="row g-3">{% for key,label,color in [('present','Present','success'),('absent','Absent','danger'),('late','Late','warning')] %}<div class="col-6 col-md-4"><div class="border rounded-3 p-3 h-100"><div class="text-muted small">{{ label }}</div><div class="h2 fw-bold text-{{ color }} mb-0">{{ attendance_counts.get(key,0) }}</div></div></div>{% endfor %}</div>
+  </section>
+</main>
 {% endblock %}

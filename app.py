@@ -2021,7 +2021,8 @@ def organization_add_student():
         conn.close()
 
     return render_template(
-        "organizations/add_student.html", subjects=subjects, organization_type=organization_type
+        "organizations/add_student.html", subjects=subjects,
+        organization_type=organization_type, form={}
     )
 
 

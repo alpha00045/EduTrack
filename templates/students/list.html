@@ -18,9 +18,6 @@
             <p class="welcome-copy mb-0">Here’s what’s happening with your students today.</p>
             <p class="welcome-date mb-0 mt-2"><i class="bi bi-calendar3 me-2"></i><span id="dashboardDate">Your dashboard</span></p>
         </div>
-        <a href="{{ url_for('add_student') }}" class="btn btn-light btn-lg quick-add">
-            <i class="bi bi-person-plus-fill me-2"></i>Add student
-        </a>
     </section>
 
     <section aria-label="Class overview" class="mb-4">
@@ -87,7 +84,7 @@
                     <span class="empty-icon"><i class="bi bi-mortarboard"></i></span>
                     <h3>No student records yet</h3>
                     <p>Add your first student to start tracking class performance.</p>
-                    <a href="{{ url_for('add_student') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-2"></i>Add first student</a>
+                    <a href="{{ url_for('view_students') }}" class="btn btn-outline-primary">Open student directory</a>
                 </div>
                 {% endif %}
             </div>
@@ -96,7 +93,6 @@
             <div class="surface-card h-100">
                 <div class="surface-heading"><div><h2 class="section-heading mb-1">Quick actions</h2><p class="section-subtitle mb-0">Your everyday tools, all in one place.</p></div></div>
                 <div class="quick-action-list">
-                    <a href="{{ url_for('add_student') }}" class="quick-action"><span class="action-icon action-blue"><i class="bi bi-person-plus"></i></span><span><strong>Add a student</strong><small>Create a new student record</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
                     <a href="{{ url_for('view_students') }}" class="quick-action"><span class="action-icon action-purple"><i class="bi bi-people"></i></span><span><strong>Manage students</strong><small>Search, sort and update records</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
                     <a href="{{ url_for('analytics') }}" class="quick-action"><span class="action-icon action-green"><i class="bi bi-bar-chart-line"></i></span><span><strong>View analytics</strong><small>Explore class performance</small></span><i class="bi bi-chevron-right action-chevron"></i></a>
                     <a href="{{ url_for('attendance') }}" class="quick-action"><span class="action-icon action-green"><i class="bi bi-calendar-check"></i></span><span><strong>Take attendance</strong><small>Mark today's class register</small></span><i class="bi bi-chevron-right action-chevron"></i></a>

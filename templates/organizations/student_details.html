@@ -13,6 +13,7 @@
       <div class="flex-grow-1"><span class="badge text-bg-primary mb-2">Student record</span><h1 class="h3 fw-bold mb-1">{{ student.name }}</h1><div class="text-muted">Admission / Roll number: {{ student.roll }}</div><div class="small text-muted">{{ student.admission_standard or student.course_name or 'Academic profile' }}{% if student.section %} · Section {{ student.section }}{% endif %}{% if student.semester %} · Semester {{ student.semester }}{% endif %}</div></div>
       <span class="badge {{ 'text-bg-success' if (student.student_status or 'Active') == 'Active' else 'text-bg-secondary' }}">{{ student.student_status or 'Active' }}</span>
       <a class="btn btn-primary" href="{{ url_for('organization_edit_student_profile',roll=student.roll) }}"><i class="bi bi-pencil me-1"></i>Edit full profile</a>
+      {% if (student.student_status or "Active") == "Active" %}<a class="btn btn-outline-primary" href="{{ url_for('organization_student_lifecycle',roll=student.roll) }}">Promote / transfer</a>{% endif %}
     </div>
     <hr>
     <h2 class="h5 fw-bold">Personal information</h2>

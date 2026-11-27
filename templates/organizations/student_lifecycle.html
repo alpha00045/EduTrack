@@ -1,0 +1,67 @@
+{% extends "layouts/base.html" %}
+{% block title %}Student Promotion & Transfer | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:900px">
+  <a href="{{ url_for('organization_student_details', roll=student.roll) }}" class="small">← Student profile</a>
+  <h1 class="h2 fw-bold mt-2">Promotion & student lifecycle</h1>
+  <p class="text-muted">Update the student's academic placement or record a transfer, graduation or withdrawal. Previous enrolments remain in the history.</p>
+  <section class="card border-0 shadow-sm p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between gap-2">
+      <div><div class="text-muted small">Student</div><h2 class="h5 mb-1">{{ student.name }}</h2><div class="small text-muted">Roll / Admission no.: {{ student.roll }}</div></div>
+      <span class="badge text-bg-{{ 'success' if student.status == 'Active' else 'secondary' }}">{{ student.status }}</span>
+    </div>
+    <hr>
+    <div class="row g-3 small">
+      <div class="col-md-4"><span class="text-muted">Academic year</span><div class="fw-semibold">{{ student.academic_year or '—' }}</div></div>
+      {% if student.organization_type == 'School' %}
+      <div class="col-md-4"><span class="text-muted">Class / standard</span><div class="fw-semibold">{{ student.standard or '—' }}</div></div>
+      <div class="col-md-4"><span class="text-muted">Section</span><div class="fw-semibold">{{ student.section or '—' }}</div></div>
+      {% else %}
+      <div class="col-md-4"><span class="text-muted">Course</span><div class="fw-semibold">{{ student.course_name or '—' }}</div></div>
+      <div class="col-md-4"><span class="text-muted">Semester</span><div class="fw-semibold">{{ student.semester or '—' }}</div></div>
+      {% endif %}
+    </div>
+  </section>
+  {% if student.status == 'Active' %}
+  <section class="card border-0 shadow-sm p-4 mb-4">
+    <h2 class="h5 fw-bold">Promote / change academic placement</h2>
+    <p class="small text-muted">Use this for the next class, section, course or semester. The previous active enrolment will be closed, not deleted.</p>
+    <form method="POST" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="promote">
+      <div class="col-md-6"><label class="form-label">New academic year *</label><input class="form-control" name="academic_year" maxlength="20" required placeholder="e.g. 2027-28"></div>
+      <div class="col-md-6"><label class="form-label">Effective date</label><input class="form-control" type="date" name="effective_date" value="{{ '' }}"></div>
+      {% if student.organization_type == 'School' %}
+      <div class="col-md-6"><label class="form-label">Next class / standard *</label><input class="form-control" name="standard" maxlength="40" required value="{{ student.standard }}"></div>
+      <div class="col-md-6"><label class="form-label">Section</label><input class="form-control" name="section" maxlength="30" value="{{ student.section }}"></div>
+      {% else %}
+      <div class="col-md-6"><label class="form-label">Course *</label><input class="form-control" name="course_name" maxlength="120" required value="{{ student.course_name }}"></div>
+      <div class="col-md-6"><label class="form-label">Semester *</label><input class="form-control" name="semester" maxlength="20" required value="{{ student.semester }}"></div>
+      {% endif %}
+      <div class="col-12"><button class="btn btn-primary">Save new enrolment</button></div>
+    </form>
+  </section>
+  <section class="card border-0 shadow-sm p-4 mb-4">
+    <h2 class="h5 fw-bold">Transfer, graduate or withdraw</h2>
+    <p class="small text-muted">These actions close the current enrolment and disable the student's portal login. They do not delete the student record.</p>
+    <form method="POST" class="row g-3" onsubmit="return confirm('Confirm this student lifecycle action? The student login will be disabled.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-6"><label class="form-label">Action</label><select class="form-select" name="action" required><option value="transfer">Transfer out</option><option value="graduate">Mark as graduated</option><option value="withdraw">Withdraw student</option></select></div>
+      <div class="col-md-6"><label class="form-label">Effective date</label><input class="form-control" type="date" name="effective_date"></div>
+      <div class="col-12"><button class="btn btn-outline-danger">Record action</button></div>
+    </form>
+  </section>
+  {% else %}
+  <div class="alert alert-warning">This student is not active. Lifecycle changes are locked to protect the record. Contact the platform administrator if reactivation is required.</div>
+  {% endif %}
+  <section class="card border-0 shadow-sm p-4">
+    <h2 class="h5 fw-bold">Complete enrolment history</h2>
+    <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Academic year</th><th>Class / course</th><th>Section / semester</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+      <tbody>{% for item in history %}
+      <tr><td>{{ item[0] }}</td><td>{{ item[1] or item[3] or '—' }}</td><td>{{ item[2] or item[4] or '—' }}</td><td>{{ item[5] or '—' }}</td><td>{{ item[6] or '—' }}</td><td>{{ item[7] }}</td></tr>
+      {% else %}<tr><td colspan="6" class="text-center text-muted">No enrolment history found.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</main>
+{% endblock %}

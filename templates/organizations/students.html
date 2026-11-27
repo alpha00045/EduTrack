@@ -22,9 +22,16 @@
 <div class="col-md-3"><select class="form-select" name="semester"><option value="">All Semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
 <div class="col-auto"><button class="btn btn-outline-primary">Apply</button><a class="btn btn-outline-secondary ms-1" href="{{ url_for('organization_students') }}">Clear</a></div></form>
   <div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table align-middle mb-0">
-    <thead><tr><th>Roll number</th><th>Student name</th>{% for subject_id,subject_name in subjects %}<th>{{ subject_name }}</th>{% endfor %}<th>Average</th><th>Action</th></tr></thead>
-    <tbody>{% for student in students %}<tr><td>{{ student.roll }}</td><td><a href="{{ url_for('organization_student_details',roll=student.roll) }}">{{ student.name }}</a></td>{% for subject_id,subject_name in subjects %}<td>{{ student.marks.get(subject_id, '—') }}</td>{% endfor %}<td>{{ student.average }}%</td><td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_edit_student',roll=student.roll) }}">Edit</a></td></tr>
-    {% else %}<tr><td colspan="{{ subjects|length + 4 }}" class="text-center text-muted py-4">No matching students found.</td></tr>{% endfor %}</tbody>
+    <thead><tr><th>Admission / Roll No.</th><th>Student</th><th>Class / Course</th><th>Semester / Section</th><th>Academic year</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+    <tbody>{% for student in students %}<tr>
+      <td class="fw-semibold">{{ student.roll }}</td>
+      <td><a class="fw-semibold text-decoration-none" href="{{ url_for('organization_student_details',roll=student.roll) }}">{{ student.name }}</a><div class="small text-muted">Open full student record</div></td>
+      <td>{{ student.standard or student.course_name or "—" }}</td>
+      <td>{{ student.semester or student.section or "—" }}</td>
+      <td>{{ student.academic_year or "—" }}</td>
+      <td><span class="badge {{ 'text-bg-success' if student.status == 'Active' else 'text-bg-secondary' }}">{{ student.status }}</span></td>
+      <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_student_details',roll=student.roll) }}">View profile</a></td>
+    </tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-4">No matching students found.</td></tr>{% endfor %}</tbody>
   </table></div></div>
 </main>
 {% endblock %}

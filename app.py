@@ -1871,30 +1871,116 @@ def organization_dashboard():
 @app.route("/organization/students")
 @organization_required
 def organization_students():
-    oid=session["organization_id"]; search=request.args.get("q","").strip()[:100]
-    standard=request.args.get("standard","").strip()[:40]; semester=request.args.get("semester","").strip()[:20]
-    conn=get_db_connection(); cur=conn.cursor()
+    oid = session["organization_id"]
+    search = request.args.get("q", "").strip()[:100]
+    standard = request.args.get("standard", "").strip()[:40]
+    semester = request.args.get("semester", "").strip()[:20]
+    status = request.args.get("status", "").strip()
+    academic_year = request.args.get("academic_year", "").strip()[:20]
+    sort = request.args.get("sort", "roll")
+    order_by = {
+        "roll": "s.roll_number ASC",
+        "name": "LOWER(s.name) ASC, s.roll_number ASC",
+        "newest": "s.created_at DESC, s.roll_number ASC",
+    }.get(sort, "s.roll_number ASC")
     try:
-        subjects=_organization_subjects(cur,oid)
-        cur.execute("SELECT DISTINCT admission_standard FROM organization_student_profiles WHERE organization_id=%s AND admission_standard IS NOT NULL AND admission_standard<>'' ORDER BY admission_standard",(oid,))
-        standards=[x[0] for x in cur.fetchall()]
-        cur.execute("SELECT DISTINCT semester FROM organization_student_profiles WHERE organization_id=%s AND semester IS NOT NULL AND semester<>'' ORDER BY semester",(oid,))
-        semesters=[x[0] for x in cur.fetchall()]
-        clauses=["s.organization_id=%s"]; params=[oid]
-        if search: clauses.append("(s.roll_number ILIKE %s OR s.name ILIKE %s)"); params += [f"%{search}%"]*2
-        if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
-        if semester: clauses.append("p.semester=%s"); params.append(semester)
-        cur.execute("""SELECT s.id,s.roll_number,s.name,p.admission_standard,p.semester,
-                              p.academic_year,p.student_status,p.course_name
-            FROM organization_students s
-            LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
-            WHERE """+" AND ".join(clauses)+" ORDER BY s.roll_number LIMIT 200",tuple(params))
-        rows=cur.fetchall()
-        students=[{"id":r[0],"roll":r[1],"name":r[2],"standard":r[3],
-                   "semester":r[4],"academic_year":r[5],"status":r[6] or "Active",
-                   "course_name":r[7]} for r in rows]
-    finally: cur.close(); conn.close()
-    return render_template("organizations/students.html",students=students,search=search,subjects=subjects,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
+        page = max(1, int(request.args.get("page", "1")))
+    except (TypeError, ValueError):
+        page = 1
+    per_page = 25
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT DISTINCT admission_standard
+               FROM organization_student_profiles
+               WHERE organization_id=%s AND admission_standard IS NOT NULL
+                 AND admission_standard<>''
+               ORDER BY admission_standard""",
+            (oid,),
+        )
+        standards = [x[0] for x in cur.fetchall()]
+        cur.execute(
+            """SELECT DISTINCT semester FROM organization_student_profiles
+               WHERE organization_id=%s AND semester IS NOT NULL AND semester<>''
+               ORDER BY semester""",
+            (oid,),
+        )
+        semesters = [x[0] for x in cur.fetchall()]
+        cur.execute(
+            """SELECT DISTINCT academic_year FROM organization_student_profiles
+               WHERE organization_id=%s AND academic_year IS NOT NULL AND academic_year<>''
+               ORDER BY academic_year DESC""",
+            (oid,),
+        )
+        academic_years = [x[0] for x in cur.fetchall()]
+
+        clauses = ["s.organization_id=%s"]
+        params = [oid]
+        if search:
+            clauses.append(
+                """(s.roll_number ILIKE %s OR s.name ILIKE %s
+                   OR COALESCE(p.admission_number,'') ILIKE %s
+                   OR COALESCE(p.phone,'') ILIKE %s
+                   OR COALESCE(p.email,'') ILIKE %s
+                   OR COALESCE(p.guardian_name,'') ILIKE %s
+                   OR COALESCE(p.guardian_phone,'') ILIKE %s)"""
+            )
+            params.extend([f"%{search}%"] * 7)
+        if standard:
+            clauses.append("p.admission_standard=%s")
+            params.append(standard)
+        if semester:
+            clauses.append("p.semester=%s")
+            params.append(semester)
+        if status in {"Active", "Transferred", "Graduated", "Inactive"}:
+            clauses.append("COALESCE(p.student_status,'Active')=%s")
+            params.append(status)
+        else:
+            status = ""
+        if academic_year:
+            clauses.append("p.academic_year=%s")
+            params.append(academic_year)
+
+        where = " AND ".join(clauses)
+        join = """ FROM organization_students s
+                   LEFT JOIN organization_student_profiles p
+                     ON p.organization_id=s.organization_id AND p.student_id=s.id """
+        cur.execute("SELECT COUNT(*)" + join + " WHERE " + where, tuple(params))
+        total_students = cur.fetchone()[0] or 0
+        total_pages = max(1, (total_students + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        offset = (page - 1) * per_page
+        cur.execute(
+            """SELECT s.id,s.roll_number,s.name,p.admission_standard,p.semester,
+                      p.academic_year,COALESCE(p.student_status,'Active'),p.course_name,p.section,
+                      p.admission_number,p.phone,p.email
+               """ + join + " WHERE " + where +
+            f" ORDER BY {order_by} LIMIT %s OFFSET %s",
+            tuple(params + [per_page, offset]),
+        )
+        rows = cur.fetchall()
+        students = [{
+            "id": r[0], "roll": r[1], "name": r[2], "standard": r[3],
+            "semester": r[4], "academic_year": r[5], "status": r[6],
+            "course_name": r[7], "section": r[8], "admission_number": r[9],
+            "phone": r[10], "email": r[11],
+        } for r in rows]
+    finally:
+        cur.close()
+        conn.close()
+
+    return render_template(
+        "organizations/students.html",
+        students=students, search=search, standards=standards,
+        semesters=semesters, selected_standard=standard,
+        selected_semester=semester, selected_status=status,
+        academic_years=academic_years, selected_academic_year=academic_year,
+        sort=sort, total_students=total_students, total_pages=total_pages,
+        page=page, per_page=per_page, start_index=offset + 1 if total_students else 0,
+        end_index=offset + len(students),
+    )
 
 
 @app.route("/organization/students/add", methods=["GET", "POST"])

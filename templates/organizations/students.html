@@ -1,9 +1,9 @@
 {% extends "layouts/base.html" %}
-{% block title %}Students | EduTrack{% endblock %}
+{% block title %}Student Database | EduTrack{% endblock %}
 {% block content %}
 <main class="container py-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-    <div><a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2">Students</h1></div>
+    <div><a href="{{ url_for('organization_dashboard') }}" class="small">← Dashboard</a><h1 class="h2 fw-bold mt-2 mb-1">Student Database</h1><p class="text-muted mb-0">Search and manage your organization's student records.</p></div>
     <div class="d-flex flex-wrap gap-2">
       <a class="btn btn-outline-success" href="{{ url_for('organization_export_csv') }}">CSV</a>
       <a class="btn btn-outline-success" href="{{ url_for('organization_export_excel') }}">Excel</a>
@@ -17,21 +17,50 @@
     </div>
   </div>
   {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
-  <form class="row g-2 mb-3"><div class="col-md-4"><input class="form-control" name="q" value="{{ search }}" placeholder="Search name or roll number"></div>
-<div class="col-md-3"><select class="form-select" name="standard"><option value="">All Classes</option>{% for value in standards %}<option value="{{ value }}" {% if selected_standard == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
-<div class="col-md-3"><select class="form-select" name="semester"><option value="">All Semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
-<div class="col-auto"><button class="btn btn-outline-primary">Apply</button><a class="btn btn-outline-secondary ms-1" href="{{ url_for('organization_students') }}">Clear</a></div></form>
-  <div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table align-middle mb-0">
-    <thead><tr><th>Admission / Roll No.</th><th>Student</th><th>Class / Course</th><th>Semester / Section</th><th>Academic year</th><th>Status</th><th class="text-end">Action</th></tr></thead>
-    <tbody>{% for student in students %}<tr>
-      <td class="fw-semibold">{{ student.roll }}</td>
-      <td><a class="fw-semibold text-decoration-none" href="{{ url_for('organization_student_details',roll=student.roll) }}">{{ student.name }}</a><div class="small text-muted">Open full student record</div></td>
-      <td>{{ student.standard or student.course_name or "—" }}</td>
-      <td>{{ student.semester or student.section or "—" }}</td>
-      <td>{{ student.academic_year or "—" }}</td>
-      <td><span class="badge {{ 'text-bg-success' if student.status == 'Active' else 'text-bg-secondary' }}">{{ student.status }}</span></td>
-      <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_student_details',roll=student.roll) }}">View profile</a></td>
-    </tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-4">No matching students found.</td></tr>{% endfor %}</tbody>
-  </table></div></div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-sm-4"><div class="card border-0 shadow-sm p-3 h-100"><div class="small text-muted">Matching student records</div><div class="fs-3 fw-bold">{{ total_students }}</div></div></div>
+    <div class="col-sm-4"><div class="card border-0 shadow-sm p-3 h-100"><div class="small text-muted">Current page</div><div class="fs-3 fw-bold">{{ page }} <span class="fs-6 text-muted fw-normal">of {{ total_pages }}</span></div></div></div>
+    <div class="col-sm-4"><div class="card border-0 shadow-sm p-3 h-100"><div class="small text-muted">Showing records</div><div class="fs-3 fw-bold">{{ start_index }}–{{ end_index }}</div></div></div>
+  </div>
+
+  <form method="GET" class="card border-0 shadow-sm p-3 mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-4 col-md-6"><label class="form-label small fw-semibold">Search student records</label><input class="form-control" name="q" value="{{ search }}" placeholder="Name, roll, admission no., phone, email or guardian"></div>
+      <div class="col-lg-2 col-md-3"><label class="form-label small fw-semibold">Class / standard</label><select class="form-select" name="standard"><option value="">All classes</option>{% for value in standards %}<option value="{{ value }}" {% if selected_standard == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-3"><label class="form-label small fw-semibold">Semester</label><select class="form-select" name="semester"><option value="">All semesters</option>{% for value in semesters %}<option value="{{ value }}" {% if selected_semester == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-3"><label class="form-label small fw-semibold">Academic year</label><select class="form-select" name="academic_year"><option value="">All years</option>{% for value in academic_years %}<option value="{{ value }}" {% if selected_academic_year == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-lg-2 col-md-3"><label class="form-label small fw-semibold">Student status</label><select class="form-select" name="status"><option value="">All statuses</option>{% for value in ['Active','Transferred','Graduated','Inactive'] %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label small fw-semibold">Sort records</label><select class="form-select" name="sort"><option value="roll" {% if sort == 'roll' %}selected{% endif %}>Roll number</option><option value="name" {% if sort == 'name' %}selected{% endif %}>Student name</option><option value="newest" {% if sort == 'newest' %}selected{% endif %}>Recently added</option></select></div>
+      <div class="col-md-8 d-flex gap-2"><button class="btn btn-primary">Search / Filter</button><a class="btn btn-outline-secondary" href="{{ url_for('organization_students') }}">Reset filters</a></div>
+    </div>
+  </form>
+
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive"><table class="table align-middle mb-0">
+      <thead><tr><th>Admission / Roll No.</th><th>Student</th><th>Class / Course</th><th>Section / Semester</th><th>Academic year</th><th>Status</th><th class="text-end">Action</th></tr></thead>
+      <tbody>{% for student in students %}<tr>
+        <td class="fw-semibold">{{ student.admission_number or student.roll }}</td>
+        <td><a class="fw-semibold text-decoration-none" href="{{ url_for('organization_student_details',roll=student.roll) }}">{{ student.name }}</a><div class="small text-muted">Roll: {{ student.roll }}{% if student.phone %} · {{ student.phone }}{% endif %}</div></td>
+        <td>{{ student.standard or student.course_name or "—" }}</td>
+        <td>{{ student.semester or student.section or "—" }}</td>
+        <td>{{ student.academic_year or "—" }}</td>
+        <td><span class="badge {{ 'text-bg-success' if student.status == 'Active' else 'text-bg-secondary' }}">{{ student.status }}</span></td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_student_details',roll=student.roll) }}">View profile</a></td>
+      </tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-5">No matching student records found. Try changing your search or filters.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if total_pages > 1 %}
+    <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="small text-muted">Page {{ page }} of {{ total_pages }} · {{ per_page }} records per page</span>
+      <nav aria-label="Student directory pages"><ul class="pagination pagination-sm mb-0">
+        <li class="page-item {{ 'disabled' if page <= 1 }}"><a class="page-link" href="{{ url_for('organization_students',q=search,standard=selected_standard,semester=selected_semester,status=selected_status,academic_year=selected_academic_year,sort=sort,page=page-1) }}">Previous</a></li>
+        {% for number in range([1,page-2]|max,[total_pages,page+2]|min + 1) %}
+        <li class="page-item {{ 'active' if number == page }}"><a class="page-link" href="{{ url_for('organization_students',q=search,standard=selected_standard,semester=selected_semester,status=selected_status,academic_year=selected_academic_year,sort=sort,page=number) }}">{{ number }}</a></li>
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if page >= total_pages }}"><a class="page-link" href="{{ url_for('organization_students',q=search,standard=selected_standard,semester=selected_semester,status=selected_status,academic_year=selected_academic_year,sort=sort,page=page+1) }}">Next</a></li>
+      </ul></nav>
+    </div>
+    {% endif %}
+  </div>
 </main>
 {% endblock %}

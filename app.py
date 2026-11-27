@@ -2159,13 +2159,16 @@ def organization_edit_student_profile(roll):
     cur = conn.cursor()
     try:
         cur.execute(
-            """SELECT id, roll_number, name FROM organization_students
-               WHERE organization_id=%s AND roll_number=%s""",
+            """SELECT s.id, s.roll_number, s.name, o.organization_type
+               FROM organization_students s
+               JOIN organizations o ON o.id=s.organization_id
+               WHERE s.organization_id=%s AND s.roll_number=%s""",
             (organization_id, roll),
         )
         student = cur.fetchone()
         if not student:
             abort(404)
+        student_id, student_roll, student_name, organization_type = student
 
         if request.method == "POST":
             photo, photo_error = _valid_image_upload(request.files.get("photo"))
@@ -2173,8 +2176,8 @@ def organization_edit_student_profile(roll):
                 flash(photo_error, "danger")
                 return redirect(url_for("organization_edit_student_profile", roll=roll))
 
-            joining_date = request.form.get("joining_date", "").strip() or None
-            date_of_birth = request.form.get("date_of_birth", "").strip() or None
+            joining_date = (request.form.get("joining_date") or "").strip() or None
+            date_of_birth = (request.form.get("date_of_birth") or "").strip() or None
             for field_name, value in (("joining date", joining_date), ("date of birth", date_of_birth)):
                 if value:
                     try:
@@ -2183,24 +2186,65 @@ def organization_edit_student_profile(roll):
                         flash("Enter a valid " + field_name + ".", "danger")
                         return redirect(url_for("organization_edit_student_profile", roll=roll))
 
+            status = (request.form.get("student_status") or "Active").strip()
+            if status not in {"Active", "Transferred", "Graduated", "Inactive"}:
+                flash("Choose a valid student status.", "danger")
+                return redirect(url_for("organization_edit_student_profile", roll=roll))
+
+            blood_group = (request.form.get("blood_group") or "").strip().upper() or None
+            if blood_group and blood_group not in {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}:
+                flash("Choose a valid blood group.", "danger")
+                return redirect(url_for("organization_edit_student_profile", roll=roll))
+
+            standard = (request.form.get("admission_standard") or "").strip()[:40] or None
+            section = (request.form.get("section") or "").strip()[:30] or None
+            course_name = (request.form.get("course_name") or "").strip()[:120] or None
+            semester = (request.form.get("semester") or "").strip()[:20] or None
+            academic_year = (request.form.get("academic_year") or "").strip()[:20] or None
+            if organization_type == "School":
+                course_name, semester = None, None
+                if not standard:
+                    flash("Enter the student's class or standard.", "danger")
+                    return redirect(url_for("organization_edit_student_profile", roll=roll))
+            else:
+                standard, section = None, None
+                if not course_name or not semester:
+                    flash("Enter the student's course and semester.", "danger")
+                    return redirect(url_for("organization_edit_student_profile", roll=roll))
+
             values = (
-                date_of_birth, request.form.get("gender", "").strip()[:40] or None,
-                request.form.get("email", "").strip()[:254] or None,
-                request.form.get("phone", "").strip()[:30] or None,
-                request.form.get("guardian_name", "").strip()[:120] or None,
-                request.form.get("guardian_phone", "").strip()[:30] or None,
-                request.form.get("address", "").strip()[:500] or None,
-                request.form.get("admission_number", "").strip()[:80] or None,
+                date_of_birth,
+                (request.form.get("gender") or "").strip()[:40] or None,
+                (request.form.get("email") or "").strip().lower()[:254] or None,
+                (request.form.get("phone") or "").strip()[:30] or None,
+                (request.form.get("guardian_name") or "").strip()[:120] or None,
+                (request.form.get("guardian_phone") or "").strip()[:30] or None,
+                (request.form.get("address") or "").strip()[:500] or None,
+                (request.form.get("admission_number") or "").strip()[:80] or None,
                 joining_date,
-                request.form.get("admission_standard", "").strip()[:40] or None,
-                request.form.get("notes", "").strip()[:2000] or None,
+                standard,
+                (request.form.get("notes") or "").strip()[:2000] or None,
+                (request.form.get("father_name") or "").strip()[:120] or None,
+                (request.form.get("mother_name") or "").strip()[:120] or None,
+                blood_group,
+                (request.form.get("guardian_email") or "").strip().lower()[:254] or None,
+                (request.form.get("emergency_contact_name") or "").strip()[:120] or None,
+                (request.form.get("emergency_contact_phone") or "").strip()[:30] or None,
+                section,
+                academic_year,
+                (request.form.get("previous_institution") or "").strip()[:180] or None,
+                course_name,
+                status,
             )
             cur.execute(
                 """INSERT INTO organization_student_profiles
                    (organization_id, student_id, date_of_birth, gender, email, phone,
                     guardian_name, guardian_phone, address, admission_number,
-                    joining_date, admission_standard, notes)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    joining_date, admission_standard, notes, father_name, mother_name,
+                    blood_group, guardian_email, emergency_contact_name,
+                    emergency_contact_phone, section, academic_year,
+                    previous_institution, course_name, student_status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (organization_id, student_id) DO UPDATE SET
                     date_of_birth=EXCLUDED.date_of_birth, gender=EXCLUDED.gender,
                     email=EXCLUDED.email, phone=EXCLUDED.phone,
@@ -2209,45 +2253,109 @@ def organization_edit_student_profile(roll):
                     admission_number=EXCLUDED.admission_number,
                     joining_date=EXCLUDED.joining_date,
                     admission_standard=EXCLUDED.admission_standard,
-                    notes=EXCLUDED.notes, updated_at=CURRENT_TIMESTAMP""",
-                (organization_id, student[0], *values),
+                    notes=EXCLUDED.notes, father_name=EXCLUDED.father_name,
+                    mother_name=EXCLUDED.mother_name, blood_group=EXCLUDED.blood_group,
+                    guardian_email=EXCLUDED.guardian_email,
+                    emergency_contact_name=EXCLUDED.emergency_contact_name,
+                    emergency_contact_phone=EXCLUDED.emergency_contact_phone,
+                    section=EXCLUDED.section, academic_year=EXCLUDED.academic_year,
+                    previous_institution=EXCLUDED.previous_institution,
+                    course_name=EXCLUDED.course_name, student_status=EXCLUDED.student_status,
+                    updated_at=CURRENT_TIMESTAMP""",
+                (organization_id, student_id, *values),
             )
             if photo:
                 cur.execute(
                     """UPDATE organization_student_profiles
                        SET photo_data=%s, photo_mime=%s, updated_at=CURRENT_TIMESTAMP
                        WHERE organization_id=%s AND student_id=%s""",
-                    (photo[0], photo[1], organization_id, student[0]),
+                    (photo[0], photo[1], organization_id, student_id),
                 )
+
+            # Keep the student's current enrolment and account status in sync.
+            enrolment_status = {
+                "Active": "Active", "Transferred": "Transferred",
+                "Graduated": "Completed", "Inactive": "Withdrawn",
+            }[status]
+            placement = (academic_year, organization_type, standard, section, course_name, semester)
+            cur.execute(
+                """SELECT id, academic_year, organization_type, standard, section,
+                          course_name, semester
+                   FROM organization_student_enrolments
+                   WHERE organization_id=%s AND student_id=%s AND status='Active'
+                   ORDER BY id DESC LIMIT 1""",
+                (organization_id, student_id),
+            )
+            current_enrolment = cur.fetchone()
+            if current_enrolment:
+                old_placement = tuple(current_enrolment[1:])
+                if old_placement != placement:
+                    cur.execute(
+                        """UPDATE organization_student_enrolments
+                           SET status='Completed', end_date=COALESCE(end_date,CURRENT_DATE)
+                           WHERE id=%s AND organization_id=%s AND student_id=%s""",
+                        (current_enrolment[0], organization_id, student_id),
+                    )
+                    current_enrolment = None
+            if current_enrolment:
+                cur.execute(
+                    """UPDATE organization_student_enrolments
+                       SET status=%s,
+                           end_date=CASE WHEN %s='Active' THEN NULL ELSE COALESCE(end_date,CURRENT_DATE) END
+                       WHERE id=%s AND organization_id=%s AND student_id=%s""",
+                    (enrolment_status, enrolment_status, current_enrolment[0], organization_id, student_id),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO organization_student_enrolments
+                       (organization_id,student_id,academic_year,organization_type,
+                        standard,section,course_name,semester,start_date,end_date,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,COALESCE(%s,CURRENT_DATE),
+                               CASE WHEN %s='Active' THEN NULL ELSE CURRENT_DATE END,%s)""",
+                    (organization_id, student_id, academic_year or "Unspecified", organization_type,
+                     standard, section, course_name, semester, joining_date,
+                     enrolment_status, enrolment_status),
+                )
+            cur.execute(
+                """UPDATE organization_student_accounts
+                   SET account_status=%s, updated_at=CURRENT_TIMESTAMP
+                   WHERE organization_id=%s AND student_id=%s""",
+                ("Active" if status == "Active" else "Disabled", organization_id, student_id),
+            )
             conn.commit()
-            flash("Student profile saved successfully.", "success")
+            flash("Complete student profile saved successfully.", "success")
             return redirect(url_for("organization_student_details", roll=roll))
 
         cur.execute(
             """SELECT date_of_birth, gender, email, phone, guardian_name,
                       guardian_phone, address, admission_number, joining_date,
-                      admission_standard, notes, photo_mime
+                      admission_standard, notes, photo_mime, father_name, mother_name,
+                      blood_group, guardian_email, emergency_contact_name,
+                      emergency_contact_phone, section, academic_year,
+                      previous_institution, course_name, student_status, semester
                FROM organization_student_profiles
                WHERE organization_id=%s AND student_id=%s""",
-            (organization_id, student[0]),
+            (organization_id, student_id),
         )
         profile = cur.fetchone()
     finally:
         cur.close()
         conn.close()
 
-    profile_data = {}
-    if profile:
-        profile_data = dict(zip(
-            ("date_of_birth", "gender", "email", "phone", "guardian_name",
-             "guardian_phone", "address", "admission_number", "joining_date",
-             "admission_standard", "notes", "photo_mime"),
-            profile,
-        ))
+    profile_fields = (
+        "date_of_birth", "gender", "email", "phone", "guardian_name",
+        "guardian_phone", "address", "admission_number", "joining_date",
+        "admission_standard", "notes", "photo_mime", "father_name", "mother_name",
+        "blood_group", "guardian_email", "emergency_contact_name",
+        "emergency_contact_phone", "section", "academic_year",
+        "previous_institution", "course_name", "student_status", "semester",
+    )
+    profile_data = dict(zip(profile_fields, profile)) if profile else {}
     return render_template(
         "organizations/edit_profile.html",
-        student={"roll": student[1], "name": student[2]},
+        student={"roll": student_roll, "name": student_name},
         profile=profile_data,
+        organization_type=organization_type,
     )
 
 

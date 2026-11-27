@@ -44,6 +44,33 @@
     </table></div>
   </section>
 
+  <section class="card border-0 shadow-sm p-4 mt-4" id="student-documents">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div><h2 class="h5 fw-bold mb-1">Student documents</h2><p class="text-muted small mb-0">Store admission forms, certificates and other student records securely.</p></div>
+      <span class="badge text-bg-secondary">{{ documents|length }} file(s)</span>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="alert alert-{{ category }} mt-3 mb-0">{{ message }}</div>{% endfor %}{% endwith %}
+    <form method="POST" enctype="multipart/form-data" action="{{ url_for('organization_upload_student_document',roll=student.roll) }}" class="row g-2 align-items-end mt-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-8"><label class="form-label small fw-semibold">Upload a document (PDF, JPG, PNG or WebP; max 5 MB)</label><input class="form-control" type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" required></div>
+      <div class="col-md-4"><button class="btn btn-primary w-100">Upload document</button></div>
+    </form>
+    <div class="table-responsive mt-3"><table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Document name</th><th>File type</th><th>Uploaded</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>{% for document in documents %}
+        <tr>
+          <td class="fw-semibold">{{ document[1] }}</td><td>{{ document[2] }}</td><td>{{ document[3] }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('organization_download_student_document',roll=student.roll,document_id=document[0]) }}">Download</a>
+            <form method="POST" action="{{ url_for('organization_delete_student_document',roll=student.roll,document_id=document[0]) }}" class="d-inline" onsubmit="return confirm('Delete this document permanently?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}<tr><td colspan="4" class="text-center text-muted py-3">No documents uploaded for this student yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+
   <section class="card border-0 shadow-sm p-4 mt-4" id="student-results">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div><h2 class="h5 fw-bold mb-1">Results & academic performance</h2><p class="text-muted small mb-0">Marks are kept separate from the student directory and personal profile.</p></div>

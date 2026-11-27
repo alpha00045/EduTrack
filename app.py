@@ -2222,6 +2222,14 @@ def organization_student_details(roll):
             (oid, r[0]),
         )
         exam_rows = cur.fetchall()
+        cur.execute(
+            """SELECT id,document_name,mime_type,uploaded_at
+               FROM organization_student_documents
+               WHERE organization_id=%s AND student_id=%s
+               ORDER BY uploaded_at DESC,id DESC""",
+            (oid, r[0]),
+        )
+        documents = cur.fetchall()
     finally:
         cur.close()
         conn.close()
@@ -2247,8 +2255,123 @@ def organization_student_details(roll):
     return render_template(
         "organizations/student_details.html",
         student=student, assessments=assessments,
-        exam_results=exam_results, enrolments=enrolments,
+        exam_results=exam_results, enrolments=enrolments, documents=documents,
     )
+
+
+@app.route("/organization/students/<path:roll>/documents", methods=["POST"])
+@organization_required
+def organization_upload_student_document(roll):
+    """Upload a private document for a student in the current organization."""
+    upload = request.files.get("document")
+    if not upload or not upload.filename:
+        flash("Choose a document to upload.", "warning")
+        return redirect(url_for("organization_student_details", roll=roll))
+
+    file_data = upload.read(5 * 1024 * 1024 + 1)
+    if not file_data or len(file_data) > 5 * 1024 * 1024:
+        flash("Each document must be non-empty and no larger than 5 MB.", "danger")
+        return redirect(url_for("organization_student_details", roll=roll))
+
+    if file_data.startswith(b"%PDF-"):
+        mime_type = "application/pdf"
+    elif file_data.startswith(bytes([255, 216, 255])):
+        mime_type = "image/jpeg"
+    elif file_data.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])):
+        mime_type = "image/png"
+    elif len(file_data) >= 12 and file_data[:4] == b"RIFF" and file_data[8:12] == b"WEBP":
+        mime_type = "image/webp"
+    else:
+        flash("Documents must be valid PDF, JPG, PNG or WebP files.", "danger")
+        return redirect(url_for("organization_student_details", roll=roll))
+
+    document_name = secure_filename(upload.filename)[:180] or "student-document"
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT id FROM organization_students
+               WHERE organization_id=%s AND roll_number=%s""",
+            (organization_id, roll),
+        )
+        student = cur.fetchone()
+        if not student:
+            abort(404)
+        cur.execute(
+            """INSERT INTO organization_student_documents
+               (organization_id,student_id,document_name,mime_type,file_data)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (organization_id, student[0], document_name, mime_type, file_data),
+        )
+        conn.commit()
+        flash("Student document uploaded successfully.", "success")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_student_details", roll=roll))
+
+
+@app.route("/organization/students/<path:roll>/documents/<int:document_id>")
+@organization_required
+def organization_download_student_document(roll, document_id):
+    """Download only a document owned by the current organization and student."""
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT d.document_name,d.mime_type,d.file_data
+               FROM organization_student_documents d
+               JOIN organization_students s
+                 ON s.organization_id=d.organization_id AND s.id=d.student_id
+               WHERE d.organization_id=%s AND s.roll_number=%s AND d.id=%s""",
+            (organization_id, roll, document_id),
+        )
+        document = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not document:
+        abort(404)
+    response = send_file(
+        BytesIO(document[2]), mimetype=document[1], as_attachment=True,
+        download_name=secure_filename(document[0]) or "student-document", max_age=0,
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@app.route("/organization/students/<path:roll>/documents/<int:document_id>/delete", methods=["POST"])
+@organization_required
+def organization_delete_student_document(roll, document_id):
+    """Delete a document only when it belongs to this tenant and student."""
+    organization_id = session["organization_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """DELETE FROM organization_student_documents d
+               USING organization_students s
+               WHERE d.organization_id=%s AND d.id=%s
+                 AND s.organization_id=d.organization_id AND s.id=d.student_id
+                 AND s.roll_number=%s""",
+            (organization_id, document_id, roll),
+        )
+        if cur.rowcount:
+            conn.commit()
+            flash("Student document deleted.", "success")
+        else:
+            conn.rollback()
+            abort(404)
+    finally:
+        cur.close()
+        conn.close()
+    return redirect(url_for("organization_student_details", roll=roll))
 
 
 # Detailed student profiles, photo uploads and academic history (Phase 3)

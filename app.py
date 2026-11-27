@@ -132,9 +132,9 @@ def calculate_average(marks):
     return round(sum(valid_marks) / len(valid_marks), 2)
 
 
-def has_passed_all_subjects(marks, pass_mark):
-    """A student passes only when at least one subject mark exists and all marks meet the pass mark."""
-    return bool(marks) and all(mark is not None and mark >= pass_mark for mark in marks)
+def all_subjects_passed(subject_count, passed_subject_count):
+    """Return true only when at least one subject exists and every subject is passed."""
+    return subject_count > 0 and subject_count == passed_subject_count
 
 
 def calculate_grade(average):
@@ -2523,7 +2523,7 @@ def organization_analytics():
             students.append({"roll": roll, "name": name, "average": average, "grade": grade})
             grades[grade] += 1
             bands["Below 40" if average < 40 else "40–59" if average < 60 else "60–79" if average < 80 else "80–100"] += 1
-            if subject_count > 0 and subject_count == passed_subject_count:
+            if all_subjects_passed(subject_count, passed_subject_count):
                 passed += 1
         cur.execute("""SELECT sub.subject_name,ROUND(AVG(m.marks),2)
             FROM organization_student_subject_marks m

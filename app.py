@@ -132,6 +132,11 @@ def calculate_average(marks):
     return round(sum(valid_marks) / len(valid_marks), 2)
 
 
+def all_subjects_passed(subject_count, passed_subject_count):
+    """Return true only when at least one subject exists and every subject is passed."""
+    return subject_count > 0 and subject_count == passed_subject_count
+
+
 def calculate_grade(average):
     pass_mark = 33
     if has_request_context():
@@ -2440,18 +2445,23 @@ def organization_attendance():
     try:
         if request.method == "POST":
             cur.execute("SELECT id,roll_number FROM organization_students WHERE organization_id=%s", (oid,))
-            for student_id, roll in cur.fetchall():
-                status = request.form.get(f"status_{roll}", "")
-                if not status:
-                    continue
-                if status not in {"present","absent","late"}:
-                    flash("Invalid attendance status.", "danger")
+            attendance_rows = cur.fetchall()
+            submitted = []
+            for student_id, roll in attendance_rows:
+                status = (request.form.get(f"status_{roll}") or "").strip().lower()
+                if status and status not in {"present", "absent", "late"}:
+                    conn.rollback()
+                    flash("Invalid attendance status. No attendance was saved.", "danger")
                     return redirect(url_for("organization_attendance", attendance_date=selected_date))
+                if status:
+                    submitted.append((oid, student_id, selected_date, status))
+
+            for values in submitted:
                 cur.execute("""INSERT INTO organization_attendance
                     (organization_id,student_id,attendance_date,status) VALUES (%s,%s,%s,%s)
                     ON CONFLICT (organization_id,student_id,attendance_date)
                     DO UPDATE SET status=EXCLUDED.status,marked_at=CURRENT_TIMESTAMP""",
-                    (oid,student_id,selected_date,status))
+                    values)
             conn.commit()
             flash("Attendance saved.", "success")
             return redirect(url_for("organization_attendance", attendance_date=selected_date))
@@ -2492,20 +2502,29 @@ def organization_analytics():
             clauses.append("p.semester=%s")
             params.append(semester)
         where = " AND ".join(clauses)
-        cur.execute("""SELECT s.roll_number,s.name,AVG(m.marks)
+        try:
+            pass_mark = int(session.get("pass_mark", 33))
+        except (TypeError, ValueError):
+            pass_mark = 33
+        cur.execute("""SELECT s.roll_number,s.name,AVG(m.marks),COUNT(m.subject_id),
+                              COUNT(CASE WHEN m.marks >= %s THEN 1 END)
             FROM organization_students s
             LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
             LEFT JOIN organization_student_subject_marks m ON m.organization_id=s.organization_id AND m.student_id=s.id
-            WHERE """ + where + """ GROUP BY s.id,s.roll_number,s.name ORDER BY s.roll_number""", tuple(params))
+            WHERE """ + where + """ GROUP BY s.id,s.roll_number,s.name ORDER BY s.roll_number""",
+            (pass_mark, *params))
         students = []
         grades = {g: 0 for g in ("A1","A2","B1","B2","C1","C2","D","F")}
         bands = {"Below 40": 0, "40–59": 0, "60–79": 0, "80–100": 0}
-        for roll, name, raw_average in cur.fetchall():
+        passed = 0
+        for roll, name, raw_average, subject_count, passed_subject_count in cur.fetchall():
             average = round(float(raw_average or 0), 2)
             grade = calculate_grade(average)
             students.append({"roll": roll, "name": name, "average": average, "grade": grade})
             grades[grade] += 1
             bands["Below 40" if average < 40 else "40–59" if average < 60 else "60–79" if average < 80 else "80–100"] += 1
+            if all_subjects_passed(subject_count, passed_subject_count):
+                passed += 1
         cur.execute("""SELECT sub.subject_name,ROUND(AVG(m.marks),2)
             FROM organization_student_subject_marks m
             JOIN organization_students s ON s.organization_id=m.organization_id AND s.id=m.student_id
@@ -2523,8 +2542,6 @@ def organization_analytics():
         conn.close()
     total = len(students)
     overall = calculate_average([s["average"] for s in students])
-    pass_mark = 33
-    passed = sum(1 for s in students if s["average"] >= pass_mark)
     return render_template("analytics/dashboard.html",
         total_students=total, overall_average=overall, passed=passed, failed=total-passed,
         subject_averages=subject_averages, grade_counts=grades, performance_bands=bands,

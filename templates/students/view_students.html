@@ -56,9 +56,7 @@
             <table class="table align-middle directory-table mb-0">
                 <thead><tr>
                     <th scope="col">ROLL NO.</th><th scope="col">STUDENT</th><th scope="col">ORGANIZATION</th><th scope="col">CLASS</th><th scope="col">SEMESTER</th>
-                    <th scope="col">MATH</th><th scope="col">SCIENCE</th>
-                    <th scope="col">ENGLISH</th><th scope="col">AVERAGE</th>
-                    <th scope="col">GRADE</th><th scope="col" class="text-end">ACTION</th>
+                    <th scope="col">RECORD TYPE</th><th scope="col" class="text-end">ACTION</th>
                 </tr></thead>
                 <tbody>
                 {% for s in students %}
@@ -66,17 +64,13 @@
                         <td class="fw-semibold">{{ s.roll }}</td>
                         <td>{{ s.name }}<div class="student-meta">Student record</div></td>
                         <td>{{ s.organization or "Admin Records" }}</td><td>{{ s.standard or "—" }}</td><td>{{ s.semester or "—" }}</td>
-                        <td>{{ s.math if s.math is not none else "—" }}</td>
-                        <td>{{ s.science if s.science is not none else "—" }}</td>
-                        <td>{{ s.english if s.english is not none else "—" }}</td>
-                        <td><strong>{{ s.average }}%</strong></td>
-                        <td><span class="grade-pill">{{ s.grade }}</span></td>
-                        <td class="text-end">{% if not s.organization %}<a class="btn btn-sm btn-outline-primary"
-                            href="{{ url_for('student_details', roll=s.roll) }}" aria-label="View {{ s.name }}">
-                            View <i class="bi bi-arrow-up-right ms-1"></i></a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                        <td><span class="badge text-bg-light">{{ "Organization student" if s.organization else "Platform record" }}</span></td>
+                        <td class="text-end">{% if s.organization_id %}<a class="btn btn-sm btn-outline-primary"
+                            href="{{ url_for('admin_organization_student_details', organization_id=s.organization_id, roll=s.roll) }}">View profile <i class="bi bi-arrow-up-right ms-1"></i></a>{% else %}<a class="btn btn-sm btn-outline-primary"
+                            href="{{ url_for('student_details', roll=s.roll) }}">View profile <i class="bi bi-arrow-up-right ms-1"></i></a>{% endif %}</td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="11">
+                    <tr><td colspan="7">
                         <div class="empty-state py-5">
                             <span class="empty-icon"><i class="bi bi-search"></i></span>
                             <h3>No matching students</h3>

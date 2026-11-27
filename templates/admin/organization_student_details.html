@@ -1,0 +1,46 @@
+{% extends "layouts/base.html" %}
+{% block title %}{{ student.name }} · Student record | EduTrack{% endblock %}
+{% block content %}
+<main class="container py-4" style="max-width:1100px">
+  <a href="{{ url_for('view_students') }}" class="small text-decoration-none">← Student directory</a>
+  <section class="card border-0 shadow-sm p-4 mt-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <span class="badge text-bg-primary mb-2">Platform student record</span>
+        <h1 class="h3 fw-bold mb-1">{{ student.name }}</h1>
+        <p class="text-muted mb-1">Admission / Roll number: {{ student.roll }}</p>
+        <p class="text-muted mb-0">{{ student.organization }}</p>
+      </div>
+      <span class="badge {{ 'text-bg-success' if student.status == 'Active' else 'text-bg-secondary' }}">{{ student.status or 'Status not set' }}</span>
+    </div>
+    <hr>
+    <h2 class="h5 fw-bold">Personal information</h2>
+    <div class="row g-3">
+      {% for label,value in [('Date of birth',student.date_of_birth),('Gender',student.gender),('Blood group',student.blood_group),('Email',student.email),('Phone',student.phone),('Father',student.father_name),('Mother',student.mother_name),('Guardian',student.guardian_name),('Guardian phone',student.guardian_phone),('Guardian email',student.guardian_email),('Emergency contact',student.emergency_contact_name),('Emergency phone',student.emergency_contact_phone),('Address',student.address)] %}
+      <div class="col-md-4"><div class="small text-muted">{{ label }}</div><div class="fw-semibold">{{ value or 'Not provided' }}</div></div>
+      {% endfor %}
+    </div>
+    <hr>
+    <h2 class="h5 fw-bold">Admission & current academic placement</h2>
+    <div class="row g-3">
+      {% for label,value in [('Admission number',student.admission_number),('Admission date',student.joining_date),('Class / Standard',student.standard),('Section',student.section),('Course',student.course_name),('Semester',student.semester),('Academic year',student.academic_year),('Previous institution',student.previous_institution)] %}
+      <div class="col-md-4"><div class="small text-muted">{{ label }}</div><div class="fw-semibold">{{ value or 'Not provided' }}</div></div>
+      {% endfor %}
+    </div>
+    {% if student.notes %}<hr><h2 class="h6 fw-bold">Additional notes</h2><p class="mb-0">{{ student.notes }}</p>{% endif %}
+  </section>
+  <section class="card border-0 shadow-sm p-4 mt-4">
+    <h2 class="h5 fw-bold">Enrolment history</h2>
+    <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Academic year</th><th>Class</th><th>Section</th><th>Course</th><th>Semester</th><th>From</th><th>To</th><th>Status</th></tr></thead><tbody>
+      {% for e in enrolments %}<tr>{% for value in e %}<td>{{ value or '—' }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="8" class="text-center text-muted py-3">No enrolment history available.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  <section class="card border-0 shadow-sm p-4 mt-4" id="results">
+    <h2 class="h5 fw-bold">Results & academic record</h2>
+    <p class="small text-muted">Student marks are intentionally not shown in the directory or profile summary. They are available here in the dedicated results section.</p>
+    <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Examination</th><th>Academic year</th><th>Term</th><th>Subject</th><th>Marks</th><th>Result</th></tr></thead><tbody>
+      {% for r in results if r[7] %}<tr><td>{{ r[0] }}</td><td>{{ r[1] }}</td><td>{{ r[2] or '—' }}</td><td>{{ r[3] }}</td><td>{{ r[4] }} / {{ r[5] }}</td><td><span class="badge {{ 'text-bg-success' if r[4] >= r[6] else 'text-bg-danger' }}">{{ 'Pass' if r[4] >= r[6] else 'Needs improvement' }}</span></td>{% else %}<tr><td colspan="6" class="text-center text-muted py-3">No published results available.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</main>
+{% endblock %}

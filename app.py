@@ -3911,3 +3911,7 @@ def organization_publish_exam(exam_id):
         cur.close()
         conn.close()
     return redirect(url_for("organization_exam_detail",exam_id=exam_id))
+
+# Register tenant-scoped student promotion, transfer and lifecycle routes.
+from student_lifecycle import register_student_lifecycle_routes
+register_student_lifecycle_routes(app, organization_required, get_db_connection)

@@ -977,7 +977,7 @@ def test_organization_attendance_rejects_invalid_status_without_partial_save(cli
 
     assert response.status_code == 302
     with client.session_transaction() as session:
-        assert any("No attendance was saved" in message for message in session.get("_flashes", []))
+        assert any("No attendance was saved" in message for _, message in session.get("_flashes", []))
     assert connection.rolled_back is True
     assert not any("INSERT INTO organization_attendance" in query
                    for query, _ in connection.fake_cursor.executed)

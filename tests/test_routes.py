@@ -1057,3 +1057,34 @@ def test_organization_analytics_uses_all_subjects_for_pass_fail(client, monkeypa
     assert "COUNT(CASE WHEN m.marks >= %s THEN 1 END)" in first_query
     assert first_params[0] == 40
 
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/organization/students/501/documents"),
+        ("GET", "/organization/students/501/documents/77"),
+        ("POST", "/organization/students/501/documents/77/delete"),
+    ],
+)
+def test_student_document_routes_require_organization_login(client, method, path):
+    response = client.open(path, method=method)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/login")
+
+
+def test_student_document_download_is_scoped_to_current_organization(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+    connection = FakeConnection(one=("private.pdf", "application/pdf", b"%PDF-1.4 private file"))
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.get("/organization/students/501/documents/77")
+
+    assert response.status_code == 200
+    assert response.data == b"%PDF-1.4 private file"
+    assert response.headers["Content-Disposition"].startswith("attachment;")
+    query, params = connection.fake_cursor.executed[0]
+    assert "d.organization_id=%s" in query
+    assert "s.roll_number=%s" in query
+    assert params == (23, "501", 77)

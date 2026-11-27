@@ -917,3 +917,143 @@ def test_student_account_cannot_access_exam_management(client):
     response = client.get("/organization/exams")
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/organization/login")
+
+def test_organization_attendance_page_lists_only_organization_students(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+        session["organization_name"] = "Tenant School"
+    rows = [("501", "Asha Student", "present"), ("502", "Ravi Student", None)]
+    connection = FakeConnection(rows=rows)
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.get("/organization/attendance?attendance_date=2026-11-27")
+
+    assert response.status_code == 200
+    assert b"Asha Student" in response.data
+    assert b"Ravi Student" in response.data
+    assert b"2026-11-27" in response.data
+    assert connection.fake_cursor.executed[0][1] == ("2026-11-27", 23)
+    assert connection.closed is True
+
+
+def test_organization_attendance_saves_submitted_statuses_for_current_tenant(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+    connection = FakeConnection(rows=[(301, "501"), (302, "502")])
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.post(
+        "/organization/attendance",
+        data={
+            "attendance_date": "2026-11-27",
+            "status_501": "present",
+            "status_502": "late",
+        },
+    )
+
+    assert response.status_code == 302
+    assert connection.committed is True
+    inserts = [(query, params) for query, params in connection.fake_cursor.executed
+               if "INSERT INTO organization_attendance" in query]
+    assert len(inserts) == 2
+    assert inserts[0][1] == (23, 301, "2026-11-27", "present")
+    assert inserts[1][1] == (23, 302, "2026-11-27", "late")
+
+
+def test_organization_attendance_rejects_invalid_status_without_partial_save(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+    connection = FakeConnection(rows=[(301, "501"), (302, "502")])
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.post(
+        "/organization/attendance",
+        data={
+            "attendance_date": "2026-11-27",
+            "status_501": "present",
+            "status_502": "holiday",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"No attendance was saved" in response.data
+    assert connection.rolled_back is True
+    assert not any("INSERT INTO organization_attendance" in query
+                   for query, _ in connection.fake_cursor.executed)
+
+
+def test_organization_attendance_rejects_invalid_date(client):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+
+    response = client.get("/organization/attendance?attendance_date=not-a-date")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/organization/attendance")
+
+
+def test_analytics_template_contains_every_initialized_chart(client, monkeypatch):
+    login_as_admin(client)
+    response = client.get("/analytics")
+
+    assert response.status_code == 200
+    assert b'id="subjectChart"' in response.data
+    assert b'id="gradeChart"' in response.data
+    assert b'id="performanceChart"' in response.data
+
+
+def test_all_subjects_passed_requires_every_subject_to_meet_pass_mark():
+    assert student_app.all_subjects_passed(3, 3) is True
+    assert student_app.all_subjects_passed(3, 2) is False
+    assert student_app.all_subjects_passed(0, 0) is False
+
+
+def test_organization_analytics_uses_all_subjects_for_pass_fail(client, monkeypatch):
+    with client.session_transaction() as session:
+        session["organization_id"] = 23
+        session["organization_name"] = "Tenant School"
+        session["pass_mark"] = 40
+
+    class SequenceCursor(FakeCursor):
+        def __init__(self):
+            super().__init__(rows=[])
+            self.results = [
+                [("Class 8",)],
+                [("1",)],
+                [
+                    ("501", "Pass Student", 80, 3, 3),
+                    ("502", "Fail Student", 70, 3, 2),
+                    ("503", "No Marks", None, 0, 0),
+                ],
+                [("Math", 80.0)],
+                [("present", 1)],
+            ]
+            self.index = 0
+
+        def fetchall(self):
+            result = self.results[self.index]
+            self.index += 1
+            return result
+
+    class SequenceConnection(FakeConnection):
+        def __init__(self):
+            self.fake_cursor = SequenceCursor()
+            self.committed = False
+            self.rolled_back = False
+            self.closed = False
+
+    connection = SequenceConnection()
+    monkeypatch.setattr(student_app, "get_db_connection", lambda: connection)
+
+    response = client.get("/organization/analytics")
+
+    assert response.status_code == 200
+    assert b"Passed Students" in response.data
+    assert b"Needs Improvement" in response.data
+    assert b">1</h2>" in response.data
+    assert b">2</h2>" in response.data
+    first_query, first_params = connection.fake_cursor.executed[2]
+    assert "COUNT(CASE WHEN m.marks >= %s THEN 1 END)" in first_query
+    assert first_params[0] == 40
+

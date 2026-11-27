@@ -1954,7 +1954,7 @@ def organization_students():
         offset = (page - 1) * per_page
         cur.execute(
             """SELECT s.id,s.roll_number,s.name,p.admission_standard,p.semester,
-                      p.academic_year,COALESCE(p.student_status,'Active'),p.course_name,
+                      p.academic_year,COALESCE(p.student_status,'Active'),p.course_name,p.section,
                       p.admission_number,p.phone,p.email
                """ + join + " WHERE " + where +
             f" ORDER BY {order_by} LIMIT %s OFFSET %s",
@@ -1964,8 +1964,8 @@ def organization_students():
         students = [{
             "id": r[0], "roll": r[1], "name": r[2], "standard": r[3],
             "semester": r[4], "academic_year": r[5], "status": r[6],
-            "course_name": r[7], "admission_number": r[8],
-            "phone": r[9], "email": r[10],
+            "course_name": r[7], "section": r[8], "admission_number": r[9],
+            "phone": r[10], "email": r[11],
         } for r in rows]
     finally:
         cur.close()

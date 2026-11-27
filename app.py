@@ -1884,14 +1884,15 @@ def organization_students():
         if search: clauses.append("(s.roll_number ILIKE %s OR s.name ILIKE %s)"); params += [f"%{search}%"]*2
         if standard: clauses.append("p.admission_standard=%s"); params.append(standard)
         if semester: clauses.append("p.semester=%s"); params.append(semester)
-        cur.execute("""SELECT s.id,s.roll_number,s.name FROM organization_students s
+        cur.execute("""SELECT s.id,s.roll_number,s.name,p.admission_standard,p.semester,
+                              p.academic_year,p.student_status,p.course_name
+            FROM organization_students s
             LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id
             WHERE """+" AND ".join(clauses)+" ORDER BY s.roll_number LIMIT 200",tuple(params))
-        rows=cur.fetchall(); students=[]
-        for sid,roll,name in rows:
-            cur.execute("SELECT subject_id,marks FROM organization_student_subject_marks WHERE organization_id=%s AND student_id=%s",(oid,sid))
-            marks={int(k):float(v) for k,v in cur.fetchall()}; vals=list(marks.values())
-            students.append({"id":sid,"roll":roll,"name":name,"marks":marks,"average":round(sum(vals)/len(vals),2) if vals else 0})
+        rows=cur.fetchall()
+        students=[{"id":r[0],"roll":r[1],"name":r[2],"standard":r[3],
+                   "semester":r[4],"academic_year":r[5],"status":r[6] or "Active",
+                   "course_name":r[7]} for r in rows]
     finally: cur.close(); conn.close()
     return render_template("organizations/students.html",students=students,search=search,subjects=subjects,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
 

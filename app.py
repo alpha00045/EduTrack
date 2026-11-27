@@ -2091,45 +2091,80 @@ def organization_student_details(roll):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("""SELECT s.id,s.roll_number,s.name,s.math,s.science,s.english,s.created_at,
-            p.date_of_birth,p.gender,p.email,p.phone,p.guardian_name,p.guardian_phone,p.address,
-            p.admission_number,p.joining_date,p.admission_standard,p.notes,p.photo_mime
-            FROM organization_students s LEFT JOIN organization_student_profiles p
-            ON p.organization_id=s.organization_id AND p.student_id=s.id
-            WHERE s.organization_id=%s AND s.roll_number=%s""", (oid, roll))
+        cur.execute(
+            """SELECT s.id,s.roll_number,s.name,s.created_at,
+                      p.date_of_birth,p.gender,p.email,p.phone,p.father_name,p.mother_name,
+                      p.blood_group,p.guardian_name,p.guardian_phone,p.guardian_email,p.address,
+                      p.admission_number,p.joining_date,p.admission_standard,p.section,p.semester,
+                      p.course_name,p.academic_year,p.student_status,p.previous_institution,
+                      p.emergency_contact_name,p.emergency_contact_phone,p.notes,p.photo_mime
+               FROM organization_students s
+               LEFT JOIN organization_student_profiles p
+                 ON p.organization_id=s.organization_id AND p.student_id=s.id
+               WHERE s.organization_id=%s AND s.roll_number=%s""",
+            (oid, roll),
+        )
         r = cur.fetchone()
         if not r:
             abort(404)
-        cur.execute("""SELECT academic_year,standard,term,subject,marks_obtained,maximum_marks,recorded_at
-            FROM organization_student_assessments WHERE organization_id=%s AND student_id=%s
-            ORDER BY academic_year DESC,recorded_at DESC""", (oid, r[0]))
+        cur.execute(
+            """SELECT academic_year,organization_type,standard,section,course_name,
+                      semester,start_date,end_date,status
+               FROM organization_student_enrolments
+               WHERE organization_id=%s AND student_id=%s
+               ORDER BY academic_year DESC,created_at DESC""",
+            (oid, r[0]),
+        )
+        enrolments = cur.fetchall()
+        cur.execute(
+            """SELECT academic_year,standard,term,subject,marks_obtained,maximum_marks,recorded_at
+               FROM organization_student_assessments
+               WHERE organization_id=%s AND student_id=%s
+               ORDER BY academic_year DESC,recorded_at DESC""",
+            (oid, r[0]),
+        )
         history = cur.fetchall()
-        subjects = _organization_subjects(cur, oid)
-        cur.execute("""SELECT ex.title,ex.academic_year,ex.term,sub.subject_name,
-                              res.marks_obtained,sub.maximum_marks,sub.pass_marks,ex.published
-            FROM organization_exam_results res
-            JOIN organization_exams ex ON ex.organization_id=res.organization_id AND ex.id=res.exam_id
-            JOIN organization_exam_subjects sub ON sub.organization_id=res.organization_id
-              AND sub.exam_id=res.exam_id AND sub.id=res.exam_subject_id
-            WHERE res.organization_id=%s AND res.student_id=%s
-            ORDER BY ex.exam_date DESC,ex.created_at DESC,sub.subject_name""", (oid, r[0]))
-        exam_results = cur.fetchall()
+        cur.execute(
+            """SELECT ex.title,ex.academic_year,ex.term,sub.subject_name,
+                      res.marks_obtained,sub.maximum_marks,sub.pass_marks,ex.published
+               FROM organization_exam_results res
+               JOIN organization_exams ex ON ex.organization_id=res.organization_id AND ex.id=res.exam_id
+               JOIN organization_exam_subjects sub ON sub.organization_id=res.organization_id
+                 AND sub.exam_id=res.exam_id AND sub.id=res.exam_subject_id
+               WHERE res.organization_id=%s AND res.student_id=%s
+               ORDER BY ex.exam_date DESC,ex.created_at DESC,sub.subject_name""",
+            (oid, r[0]),
+        )
+        exam_rows = cur.fetchall()
     finally:
         cur.close()
         conn.close()
-    student = dict(zip(("id","roll","name","math","science","english","created","date_of_birth",
-        "gender","email","phone","guardian_name","guardian_phone","address","admission_number",
-        "joining_date","admission_standard","notes","photo_mime"), r))
-    assessments = [{"academic_year":x[0],"standard":x[1],"term":x[2],"subject":x[3],
-        "marks":x[4],"maximum":x[5],"percentage":round(float(x[4])/float(x[5])*100,2),
-        "recorded_at":x[6]} for x in history]
-    exam_results = [{"title":x[0],"academic_year":x[1],"term":x[2],"subject":x[3],
-        "marks":x[4],"maximum":x[5],"pass_marks":x[6],"published":x[7]} for x in exam_results]
-    return render_template("organizations/student_details.html", student=student,
-                           assessments=assessments, exam_results=exam_results)
+
+    fields = (
+        "id","roll","name","created","date_of_birth","gender","email","phone",
+        "father_name","mother_name","blood_group","guardian_name","guardian_phone",
+        "guardian_email","address","admission_number","joining_date","admission_standard",
+        "section","semester","course_name","academic_year","student_status",
+        "previous_institution","emergency_contact_name","emergency_contact_phone",
+        "notes","photo_mime",
+    )
+    student = dict(zip(fields, r))
+    assessments = [{
+        "academic_year":x[0],"standard":x[1],"term":x[2],"subject":x[3],
+        "marks":x[4],"maximum":x[5],
+        "percentage":round(float(x[4])/float(x[5])*100,2),"recorded_at":x[6],
+    } for x in history]
+    exam_results = [{
+        "title":x[0],"academic_year":x[1],"term":x[2],"subject":x[3],
+        "marks":x[4],"maximum":x[5],"pass_marks":x[6],"published":x[7],
+    } for x in exam_rows]
+    return render_template(
+        "organizations/student_details.html",
+        student=student, assessments=assessments,
+        exam_results=exam_results, enrolments=enrolments,
+    )
 
 
-# ---------------------------------------------------------------------------
 # Detailed student profiles, photo uploads and academic history (Phase 3)
 # ---------------------------------------------------------------------------
 

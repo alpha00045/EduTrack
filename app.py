@@ -341,16 +341,68 @@ def view_students():
             base=" FROM organization_students s LEFT JOIN organization_student_profiles p ON p.organization_id=s.organization_id AND p.student_id=s.id JOIN organizations o ON o.id=s.organization_id"
             cur.execute("SELECT COUNT(*)"+base+where,tuple(params)); total=cur.fetchone()[0]
             pages=max(1,(total+19)//20); page=min(page,pages); offset=(page-1)*20
-            cur.execute(f"SELECT s.roll_number,s.name,s.math,s.science,s.english,p.admission_standard,p.semester,o.organization_name {base}{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
+            cur.execute(f"SELECT s.roll_number,s.name,s.math,s.science,s.english,p.admission_standard,p.semester,o.organization_name,s.organization_id,s.id {base}{where} ORDER BY {order} LIMIT %s OFFSET %s",tuple(params+[20,offset]))
         rows=cur.fetchall()
     finally:
         cur.close(); conn.close()
     students=[]
     for r in rows:
         avg=calculate_average(r[2:5])
-        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"standard":r[5] if len(r)>5 else None,"semester":r[6] if len(r)>6 else None,"organization":r[7] if len(r)>7 else None,"average":avg,"grade":calculate_grade(avg)})
+        students.append({"roll":r[0],"name":r[1],"math":r[2],"science":r[3],"english":r[4],"standard":r[5] if len(r)>5 else None,"semester":r[6] if len(r)>6 else None,"organization":r[7] if len(r)>7 else None,"organization_id":r[8] if len(r)>8 else None,"student_id":r[9] if len(r)>9 else None,"average":avg,"grade":calculate_grade(avg)})
     offset=(page-1)*20
     return render_template("students/view_students.html",students=students,search_query=q,sort_by=sort,page=page,per_page=20,total_students=total,total_pages=pages,start_index=offset+1 if total else 0,end_index=offset+len(students),organizations=organizations,selected_org=org,standards=standards,semesters=semesters,selected_standard=standard,selected_semester=semester)
+
+@app.route("/admin/organizations/<int:organization_id>/students/<path:roll>")
+@admin_required
+def admin_organization_student_details(organization_id, roll):
+    """Platform admin read-only view of an organization-owned student record."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT s.id,s.roll_number,s.name,p.date_of_birth,p.gender,p.email,p.phone,
+                              p.father_name,p.mother_name,p.guardian_name,p.guardian_phone,
+                              p.guardian_email,p.address,p.admission_number,p.joining_date,
+                              p.admission_standard,p.section,p.semester,p.course_name,
+                              p.academic_year,p.student_status,p.previous_institution,
+                              p.emergency_contact_name,p.emergency_contact_phone,p.blood_group,p.notes,
+                              o.organization_name
+                       FROM organization_students s
+                       JOIN organizations o ON o.id=s.organization_id
+                       LEFT JOIN organization_student_profiles p
+                         ON p.organization_id=s.organization_id AND p.student_id=s.id
+                       WHERE s.organization_id=%s AND s.roll_number=%s""",
+                    (organization_id, roll))
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        cur.execute("""SELECT e.academic_year,e.standard,e.section,e.course_name,e.semester,
+                              e.start_date,e.end_date,e.status
+                       FROM organization_student_enrolments e
+                       WHERE e.organization_id=%s AND e.student_id=%s
+                       ORDER BY e.academic_year DESC,e.created_at DESC""",
+                    (organization_id, row[0]))
+        enrolments = cur.fetchall()
+        cur.execute("""SELECT ex.title,ex.academic_year,ex.term,sub.subject_name,
+                              res.marks_obtained,sub.maximum_marks,sub.pass_marks,ex.published
+                       FROM organization_exam_results res
+                       JOIN organization_exams ex ON ex.organization_id=res.organization_id AND ex.id=res.exam_id
+                       JOIN organization_exam_subjects sub ON sub.organization_id=res.organization_id
+                         AND sub.exam_id=res.exam_id AND sub.id=res.exam_subject_id
+                       WHERE res.organization_id=%s AND res.student_id=%s
+                       ORDER BY ex.exam_date DESC,ex.created_at DESC,sub.subject_name""",
+                    (organization_id, row[0]))
+        results = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+    fields=("id","roll","name","date_of_birth","gender","email","phone","father_name","mother_name",
+            "guardian_name","guardian_phone","guardian_email","address","admission_number","joining_date",
+            "standard","section","semester","course_name","academic_year","status","previous_institution",
+            "emergency_contact_name","emergency_contact_phone","blood_group","notes","organization")
+    student=dict(zip(fields,row))
+    return render_template("admin/organization_student_details.html",student=student,
+                           enrolments=enrolments,results=results)
+
 
 @app.route("/add_student", methods=["GET", "POST"])
 @admin_required

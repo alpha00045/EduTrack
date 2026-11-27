@@ -2105,20 +2105,28 @@ def organization_student_details(roll):
             ORDER BY academic_year DESC,recorded_at DESC""", (oid, r[0]))
         history = cur.fetchall()
         subjects = _organization_subjects(cur, oid)
-        cur.execute("""SELECT subject_id, marks FROM organization_student_subject_marks
-            WHERE organization_id=%s AND student_id=%s""", (oid, r[0]))
-        marks = {int(k): float(v) for k, v in cur.fetchall()}
+        cur.execute("""SELECT ex.title,ex.academic_year,ex.term,sub.subject_name,
+                              res.marks_obtained,sub.maximum_marks,sub.pass_marks,ex.published
+            FROM organization_exam_results res
+            JOIN organization_exams ex ON ex.organization_id=res.organization_id AND ex.id=res.exam_id
+            JOIN organization_exam_subjects sub ON sub.organization_id=res.organization_id
+              AND sub.exam_id=res.exam_id AND sub.id=res.exam_subject_id
+            WHERE res.organization_id=%s AND res.student_id=%s
+            ORDER BY ex.exam_date DESC,ex.created_at DESC,sub.subject_name""", (oid, r[0]))
+        exam_results = cur.fetchall()
     finally:
         cur.close()
         conn.close()
     student = dict(zip(("id","roll","name","math","science","english","created","date_of_birth",
         "gender","email","phone","guardian_name","guardian_phone","address","admission_number",
         "joining_date","admission_standard","notes","photo_mime"), r))
-    student["average"] = calculate_average(list(marks.values()))
     assessments = [{"academic_year":x[0],"standard":x[1],"term":x[2],"subject":x[3],
         "marks":x[4],"maximum":x[5],"percentage":round(float(x[4])/float(x[5])*100,2),
         "recorded_at":x[6]} for x in history]
-    return render_template("organizations/student_details.html", student=student, assessments=assessments, subjects=subjects, marks=marks)
+    exam_results = [{"title":x[0],"academic_year":x[1],"term":x[2],"subject":x[3],
+        "marks":x[4],"maximum":x[5],"pass_marks":x[6],"published":x[7]} for x in exam_results]
+    return render_template("organizations/student_details.html", student=student,
+                           assessments=assessments, exam_results=exam_results)
 
 
 # ---------------------------------------------------------------------------
